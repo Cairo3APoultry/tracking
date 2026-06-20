@@ -2778,7 +2778,7 @@ function makePDFChart(config, w, h) {
               var pos = el.tooltipPosition ? el.tooltipPosition() : {x: el.x, y: el.y};
               if (ds._pdfFmt) {
                 var sp = ds._pdfFmt(val, idx);
-                if (sp && sp.text) halo(pos.x, pos.y + (sp.dy||0), sp.text, 15, sp.txt||'#0f172a');
+                if (sp && sp.text) halo(pos.x, pos.y + (sp.dy||0), sp.text, 19, sp.txt||'#0f172a');
                 return;
               }
               if (val == null || val === '' ) return;
@@ -2789,13 +2789,13 @@ function makePDFChart(config, w, h) {
                 if (pct < 4) return; // تجاهل الشرائح الصغيرة جداً
                 var ang = (el.startAngle + el.endAngle)/2;
                 var r = (el.innerRadius + el.outerRadius)/2;
-                halo(el.x + Math.cos(ang)*r, el.y + Math.sin(ang)*r, pct + '%', 17, '#ffffff', 'rgba(15,23,42,0.6)');
+                halo(el.x + Math.cos(ang)*r, el.y + Math.sin(ang)*r, pct + '%', 24, '#ffffff', 'rgba(15,23,42,0.6)');
               } else if (type === 'bar') {
-                if (ds.label === 'Benchmark') return; // نُسمّي الفعلي فقط لتجنّب الازدحام
+                if (ds.label === 'Benchmark' || ds.label === 'Standard') return; // نُسمّي الفعلي فقط لتجنّب الازدحام
                 if (!val) return;
-                halo(pos.x, pos.y - 13, val + 'm', 16, '#0f172a');
+                halo(pos.x, pos.y - 16, val + 'm', 23, '#0f172a');
               } else if (type === 'line') {
-                halo(pos.x, pos.y - 14, String(val), 15, '#1e3a8a');
+                halo(pos.x, pos.y - 17, String(val), 22, '#1e3a8a');
               }
             });
           });
@@ -2822,6 +2822,51 @@ function _expCtx() {
     return { from:rf, to:rt, list: mergeDupTrips(trips.filter(function(x){ var d=String(x.date||'').slice(0,10); return d>=rf && d<=rt; })) };
   }
   return { from:(document.getElementById('fFrom')||{}).value || today(), to:(document.getElementById('fTo')||{}).value || today(), list: mergeDupTrips(getF()) };
+}
+
+/* ════════════════════════
+   تشكيل عربي خفيف لـ PDF (jsPDF لا يدعم RTL)
+   يحوّل الحروف لأشكالها المتصلة ويعكس الاتجاه مع الحفاظ على الأرقام
+════════════════════════ */
+var _arGlyphs = {
+  1569:[65152],1570:[65153,null,null,65154],1571:[65155,null,null,65156],1572:[65157,null,null,65158],
+  1573:[65159,null,null,65160],1574:[65161,65163,65164,65162],1575:[65165,null,null,65166],
+  1576:[65167,65169,65170,65168],1577:[65171,null,null,65172],1578:[65173,65175,65176,65174],
+  1579:[65177,65179,65180,65178],1580:[65181,65183,65184,65182],1581:[65185,65187,65188,65186],
+  1582:[65189,65191,65192,65190],1583:[65193,null,null,65194],1584:[65195,null,null,65196],
+  1585:[65197,null,null,65198],1586:[65199,null,null,65200],1587:[65201,65203,65204,65202],
+  1588:[65205,65207,65208,65206],1589:[65209,65211,65212,65210],1590:[65213,65215,65216,65214],
+  1591:[65217,65219,65220,65218],1592:[65221,65223,65224,65222],1593:[65225,65227,65228,65226],
+  1594:[65229,65231,65232,65230],1601:[65233,65235,65236,65234],1602:[65237,65239,65240,65238],
+  1603:[65241,65243,65244,65242],1604:[65245,65247,65248,65246],1605:[65249,65251,65252,65250],
+  1606:[65253,65255,65256,65254],1607:[65257,65259,65260,65258],1608:[65261,null,null,65262],
+  1609:[65263,null,null,65264],1610:[65265,65267,65268,65266]
+};
+function _reshapeAr(str){
+  var ch = String(str).split(''), out = '';
+  for(var i=0;i<ch.length;i++){
+    var g = _arGlyphs[ch[i].charCodeAt(0)];
+    if(!g){ out += ch[i]; continue; }
+    var prevG = i>0 ? _arGlyphs[ch[i-1].charCodeAt(0)] : null;
+    var nextG = i<ch.length-1 ? _arGlyphs[ch[i+1].charCodeAt(0)] : null;
+    var connPrev = !!(prevG && prevG[1]!=null);      // السابق يتصل بما بعده
+    var connNext = !!(g[1]!=null && nextG);          // الحالي يتصل بما بعده والتالي عربي
+    var form;
+    if(connPrev && connNext) form = g[2];
+    else if(connPrev && !connNext) form = g[3];
+    else if(!connPrev && connNext) form = g[1];
+    else form = g[0];
+    out += String.fromCharCode(form==null ? g[0] : form);
+  }
+  return out;
+}
+function _arFix(s){
+  s = String(s==null?'':s);
+  if(!/[\u0600-\u06FF]/.test(s)) return s;
+  var rev = _reshapeAr(s).split('').reverse().join('');
+  // إعادة ترتيب تتابعات الأرقام لأنها انعكست
+  rev = rev.replace(/[0-9\u0660-\u0669]+/g, function(m){ return m.split('').reverse().join(''); });
+  return rev;
 }
 
 function expPDF() {
@@ -3151,7 +3196,7 @@ function expPDF() {
     if(imgPareto) doc.addImage(imgPareto,'JPEG',pgX+3,pgY+10,pgW-6,pgH-14);
     var tX=pgX+pgW+8, tW=CW-pgW-8;
     doc.setFont(F,'bold'); doc.setFontSize(9); sc(INK); doc.text('Critical Delay Ranking', tX, pgY+5);
-    var drows=delayList.slice(0,10).map(function(d,i){ return [String(i+1), String(d.num), d.delay+'m', (totalWaste?Math.round(d.delay/totalWaste*100):0)+'%']; });
+    var drows=delayList.slice(0,10).map(function(d,i){ return [String(i+1), _arFix(d.num), d.delay+'m', (totalWaste?Math.round(d.delay/totalWaste*100):0)+'%']; });
     if(!drows.length) drows=[['—','No delays','0m','0%']];
     exTable({ startY:pgY+8, margin:{left:tX,right:MR}, tableWidth:tW,
       head:[['Rank','Vehicle','Lost Min','Contribution']], body:drows,
@@ -3182,7 +3227,7 @@ function expPDF() {
     cats.forEach(function(c){ var seg=c[1]/tot5*dbw; if(seg>0){ sf(c[2]); doc.rect(dbx,dbY,seg,dbh,'F'); dbx+=seg; } });
     sd(WHITE); doc.setLineWidth(0.4); doc.rect(ML,dbY,dbw,dbh,'S');
     doc.setFont(F,'bold'); doc.setFontSize(8.5); sc(INK); doc.text('Vehicles Requiring Attention (lowest performance scores)', ML, dbY+dbh+8);
-    var vrows=criticalVeh.map(function(v){ return [String(v.num), String(v.score), v.delay+'m', v.cat]; });
+    var vrows=criticalVeh.map(function(v){ return [_arFix(v.num), String(v.score), v.delay+'m', v.cat]; });
     if(!vrows.length) vrows=[['—','100','0m','High Performance']];
     exTable({ startY:dbY+dbh+11, head:[['Vehicle','Performance Score','Total Delay','Status']], body:vrows,
       columnStyles:{0:{fontStyle:'bold',textColor:INK,font:AR,halign:'left'},1:{halign:'center',fontStyle:'bold'},2:{halign:'center'},3:{halign:'center',fontStyle:'bold'}},
@@ -3228,7 +3273,7 @@ function expPDF() {
     var aRows=[]; var aCap=26;
     list.forEach(function(t){ ST.forEach(function(s,i){ if(aRows.length>=aCap) return; var st=t.stations&&t.stations[s.key]; if(!st||(!st.in&&!st.out)) return; var d=_liveDur(t,s); var b=bD[i]; var diff=d!=null?d-b:null;
       var status=!st.out?'IN PROGRESS':diff>b*0.2?'DELAYED':diff>0?'SLOW':'ON TIME';
-      aRows.push([String(t.num),(i+1)+'. '+s.en, st.in||'—', st.out||'—', d!=null?d+'m':'—', b+'m', status]); }); });
+      aRows.push([_arFix(t.num),(i+1)+'. '+s.en, st.in||'—', st.out||'—', d!=null?d+'m':'—', b+'m', status]); }); });
     exTable({ startY:y7+5, head:[['Vehicle','Station','Entry','Exit','Duration','Standard','Status']], body:aRows,
       styles:{font:F,fontSize:7,cellPadding:1.7,textColor:SUB,lineColor:[233,238,244],lineWidth:0.1,valign:'middle'},
       columnStyles:{0:{fontStyle:'bold',textColor:INK,font:AR},1:{halign:'left',cellWidth:34},2:{halign:'center'},3:{halign:'center'},4:{halign:'center',fontStyle:'bold'},5:{halign:'center'},6:{halign:'center',fontStyle:'bold'}},
