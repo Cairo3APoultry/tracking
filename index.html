@@ -7,7 +7,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#c0392b">
 <meta name="mobile-web-app-capable" content="yes">
-<link rel="manifest" href="#" id="manifestLink">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <title>Cairo 3A Poultry</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2659,8 +2661,13 @@ function makePDFChart(config, w, h) {
             if (meta.hidden) return;
             meta.data.forEach(function(element, index) {
               var val = dataset.data[index];
-              if (!val || val === 0) return;
               var pos = element.tooltipPosition ? element.tooltipPosition() : {x: element.x, y: element.y};
+              if (dataset._pdfFmt) {
+                var spec = dataset._pdfFmt(val, index);
+                if (spec && spec.text) pill(pos.x, pos.y + (spec.dy||0), spec.text, spec.font||'bold 13px Arial, sans-serif', spec.txt||'#0f172a', spec.bg||'rgba(255,255,255,0.95)');
+                return;
+              }
+              if (!val || val === 0) return;
               if (chart.config.type === 'doughnut') {
                 var total = chart.data.datasets[0].data.reduce(function(a, b) { return a + b; }, 0);
                 var pct = total ? Math.round((val / total) * 100) : 0;
@@ -2711,6 +2718,23 @@ function expPDF() {
   delayList.sort(function(a,b){ return b.delay - a.delay; });
   var top5Delays = delayList.slice(0, 5);
 
+  /* ── Pareto 80/20 للتأخيرات (السيارات) ── */
+  var totalWaste = delayList.reduce(function(a,d){ return a+d.delay; }, 0);
+  var paretoTop = delayList.slice(0, 12);
+  var paretoCum = []; var _pc = 0;
+  paretoTop.forEach(function(d){ _pc += d.delay; paretoCum.push(totalWaste ? Math.round(_pc/totalWaste*100) : 0); });
+  var pareto80 = 0, _cc = 0;
+  for(var _pi=0; _pi<delayList.length; _pi++){ _cc += delayList[_pi].delay; pareto80++; if(totalWaste && _cc/totalWaste >= 0.8) break; }
+
+  /* ── تركّز التأخير على المحطات ── */
+  var stWaste = ST.map(function(s,i){
+    var w = 0;
+    list.forEach(function(t){ var st=t.stations&&t.stations[s.key]; if(st&&st.dur!=null&&st.dur>bD[i]) w += (st.dur-bD[i]); });
+    return { en:s.en, waste:w };
+  });
+  var totalStWaste = stWaste.reduce(function(a,s){ return a+s.waste; }, 0);
+  stWaste.sort(function(a,b){ return b.waste-a.waste; });
+
   var barColors = aD.map(function(d,i){ return d>bD[i]*1.2?'rgba(220, 38, 38, 0.85)':d>bD[i]?'rgba(245, 158, 11, 0.85)':'rgba(37, 99, 235, 0.85)'; });
   var CHART_FONT = { family:'Arial, sans-serif' };
   var TICK = '#475569'; var GRID = 'rgba(226, 232, 240, 0.8)';
@@ -2747,13 +2771,33 @@ function expPDF() {
     options:{animation:false,responsive:false,plugins:{legend:{display:true,position:'right',labels:{color:'#1e293b',font:Object.assign({}, CHART_FONT, {size:14,weight:'bold'}),usePointStyle:true,padding:25}}},layout:{padding:15},cutout:'55%'}
   };
 
+  var paretoCfg = {
+    type:'bar',
+    data:{ labels: paretoTop.map(function(d){ return String(d.num); }),
+      datasets:[
+        { type:'bar', label:'Wasted Min', data: paretoTop.map(function(d){ return d.delay; }),
+          backgroundColor:'rgba(220,38,38,0.78)', borderRadius:4, yAxisID:'y', order:2,
+          _pdfFmt:function(v){ return v>0?{text:v+'m',txt:'#0f172a',bg:'rgba(255,255,255,0.95)',dy:-14}:null; } },
+        { type:'line', label:'Cumulative %', data: paretoCum, borderColor:'#1d4ed8', backgroundColor:'transparent',
+          tension:0.3, pointBackgroundColor:'#1d4ed8', pointRadius:5, borderWidth:3, yAxisID:'y1', order:1,
+          _pdfFmt:function(v){ return {text:Math.round(v)+'%',txt:'#ffffff',bg:'rgba(29,78,216,0.92)',dy:-16}; } }
+      ]},
+    options:{ animation:false, responsive:false, layout:{padding:{top:42,right:15,bottom:10,left:10}},
+      plugins:{legend:{display:true,position:'top',labels:{color:'#1e293b',font:Object.assign({},CHART_FONT,{size:14,weight:'bold'}),usePointStyle:true,boxWidth:10}}},
+      scales:{
+        x:{ticks:{color:TICK,font:Object.assign({},CHART_FONT,{size:12,weight:'bold'})},grid:{display:false}},
+        y:{position:'left',beginAtZero:true,suggestedMax:(paretoTop[0]?paretoTop[0].delay:10)*1.3,ticks:{color:TICK,font:Object.assign({},CHART_FONT,{size:11})},grid:{color:GRID,borderDash:[4,4]}},
+        y1:{position:'right',beginAtZero:true,max:100,grid:{drawOnChartArea:false},ticks:{color:'#1d4ed8',font:Object.assign({},CHART_FONT,{size:11}),callback:function(v){return v+'%';}}}
+      }}
+  };
+
   var fontPromise = fetch('https://raw.githubusercontent.com/google/fonts/main/ofl/amiri/Amiri-Regular.ttf')
     .then(function(res) { if(!res.ok) throw new Error(); return res.blob(); })
     .then(function(blob) { return new Promise(function(resolve, reject) { var reader = new FileReader(); reader.onload = function() { resolve(reader.result.split(',')[1]); }; reader.onerror = reject; reader.readAsDataURL(blob); }); })
     .catch(function() { return null; });
 
-  Promise.all([ makePDFChart(stBarCfg, 1200, 480), makePDFChart(lineCfg, 900, 420), makePDFChart(donutCfg, 600, 320), fontPromise ]).then(function(charts) {
-    var imgBar = charts[0], imgLine = charts[1], imgDonut = charts[2], b64Font = charts[3];
+  Promise.all([ makePDFChart(stBarCfg, 1200, 480), makePDFChart(lineCfg, 900, 420), makePDFChart(donutCfg, 600, 320), makePDFChart(paretoCfg, 1100, 460), fontPromise ]).then(function(charts) {
+    var imgBar = charts[0], imgLine = charts[1], imgDonut = charts[2], imgPareto = charts[3], b64Font = charts[4];
     var jsPDF = window.jspdf.jsPDF;
     var doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
     var PW = 297, PH = 210;
@@ -3313,27 +3357,11 @@ function closeWarn(confirmed) {
 }
 
 /* ════════════════════════
-   PWA — Manifest + التثبيت
+   PWA — Service Worker + التثبيت
 ════════════════════════ */
-(function(){
-  try {
-    var icon = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23c0392b' rx='20'/><text y='.9em' font-size='52' x='14' fill='white' font-weight='900'>3A</text></svg>";
-    var manifest = {
-      name: 'Cairo 3A Poultry', short_name: 'Cairo 3A', start_url: '.', display: 'standalone',
-      background_color: '#c0392b', theme_color: '#c0392b', orientation: 'any',
-      icons: [
-        { src: icon, sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
-        { src: icon, sizes: '512x512', type: 'image/svg+xml', purpose: 'any maskable' }
-      ]
-    };
-    var blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
-    var mlink = document.getElementById('manifestLink');
-    if(mlink) mlink.href = URL.createObjectURL(blob);
-  } catch(e) {}
+// تسجيل Service Worker (يحسّن التثبيت ويتيح العمل دون اتصال)
+if('serviceWorker' in navigator){ try { navigator.serviceWorker.register('sw.js').catch(function(){}); } catch(e){} }
 
-  // تسجيل Service Worker (اختياري — يحسّن التثبيت ويتيح العمل دون اتصال)
-  if('serviceWorker' in navigator){ try { navigator.serviceWorker.register('sw.js').catch(function(){}); } catch(e){} }
-})();
 
 var _deferredPrompt = null;
 function _isStandalone(){ return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
