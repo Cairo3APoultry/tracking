@@ -447,6 +447,7 @@ tbody tr:last-child{border-bottom:none;}
       <button class="tb-icon-btn" onclick="goPage('scan1',null)" title="ماسح الدخول">📷</button>
       <button class="tb-icon-btn" style="background:var(--rgrad);color:#fff;" onclick="openScanner('entry')" title="فتح ماسح QR">🔍</button>
       <button class="tb-icon-btn" onclick="openTV()" title="شاشة غرفة التحكم">📺</button>
+      <button class="tb-icon-btn" id="installBtn" style="display:none;background:var(--rgrad);color:#fff;" onclick="installApp()" title="تثبيت التطبيق على الجهاز">⬇️</button>
     </div>
 
     <div id="pb">
@@ -560,6 +561,10 @@ tbody tr:last-child{border-bottom:none;}
             <div class="card-sm" style="font-size:12px;color:var(--t2);"><span id="stInsideCnt">0</span> داخل الآن</div>
             <div id="allowedStBadges" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
           </div>
+          <div id="stCardsWrap" style="margin-bottom:16px;">
+            <div style="font-size:12px;font-weight:600;color:var(--t2);margin-bottom:8px;">اختر محطتك واضغط لفتح الماسح:</div>
+            <div id="stCards" style="display:flex;gap:10px;flex-wrap:wrap;"></div>
+          </div>
           <div class="scan-layout" style="padding:0;">
             <div>
               <div class="qzone" id="stZ">
@@ -569,16 +574,19 @@ tbody tr:last-child{border-bottom:none;}
                 <div class="qstat" id="stStat" style="display:none;"></div>
               </div>
               <div style="margin-top:14px;">
-                <div class="kb-preview" id="stKbP">اكتب اللوحة ↓</div>
-                <div class="kb" id="kbL2"></div>
-                <div class="kb" id="kbN2"></div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-top:4px;">
-                  <button class="btn btgray kk kk-sp" onclick="kbSp(2)">مسافة</button>
-                  <button class="btn btgray kk kk-del" onclick="kbDel(2)">⌫ حذف</button>
-                  <button class="btn btgray kk kk-clr" onclick="kbClr(2)">✕ مسح</button>
+                <button class="btn btb" style="width:100%;padding:15px;font-size:15px;font-weight:700;" onclick="openScanner('station')">📷 فتح ماسح QR</button>
+                <button class="btn btgray" style="width:100%;margin-top:8px;padding:10px;font-size:13px;" onclick="toggleStKb()">⌨️ إدخال يدوي</button>
+                <div id="stKbWrap" style="display:none;margin-top:10px;">
+                  <div class="kb-preview" id="stKbP">اكتب اللوحة ↓</div>
+                  <div class="kb" id="kbL2"></div>
+                  <div class="kb" id="kbN2"></div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-top:4px;">
+                    <button class="btn btgray kk kk-sp" onclick="kbSp(2)">مسافة</button>
+                    <button class="btn btgray kk kk-del" onclick="kbDel(2)">⌫ حذف</button>
+                    <button class="btn btgray kk kk-clr" onclick="kbClr(2)">✕ مسح</button>
+                  </div>
+                  <button class="btn btr" id="stRegBtn" style="width:100%;margin-top:10px;padding:13px;" disabled onclick="regStation()">🏭 تسجيل المحطة</button>
                 </div>
-                <button class="btn btr" id="stRegBtn" style="width:100%;margin-top:10px;padding:13px;" disabled onclick="regStation()">🏭 تسجيل المحطة</button>
-                <button class="btn btb" style="width:100%;margin-top:8px;padding:13px;font-size:14px;" onclick="openScanner('station')">📷 فتح ماسح QR</button>
               </div>
             </div>
             <div class="card">
@@ -747,7 +755,8 @@ tbody tr:last-child{border-bottom:none;}
   <div id="tvKpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px"></div>
   <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:20px;height:calc(100vh - 200px)">
     <div style="background:#111827;border-radius:16px;padding:18px;overflow:hidden">
-      <div style="font-size:16px;font-weight:700;margin-bottom:12px;color:#9ca3af">⚡ المحطات الآن</div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:12px;color:#9ca3af">⚡ المحطات الآن <span style="font-size:11px;color:#64748b;font-weight:400">(قف أو اضغط على المحطة لعرض السيارات)</span></div>
+      <style>.tv-tip{display:none}.tv-st:hover .tv-tip,.tv-st.tv-st-open .tv-tip{display:block}.tv-st:hover{outline:2px solid #3b82f6}</style>
       <div id="tvStations" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px"></div>
     </div>
     <div style="background:#111827;border-radius:16px;padding:18px;overflow-y:auto">
@@ -807,6 +816,56 @@ tbody tr:last-child{border-bottom:none;}
     <div class="modal-hdr"><h3>🎯 المعايير الزمنية</h3><button class="modal-close" onclick="closeBench()">✕</button></div>
     <div class="modal-body"><div class="bench-grid" id="benchGridM"></div></div>
     <div class="modal-foot"><button class="btn btghost" onclick="closeBench()">إلغاء</button><button class="btn btr" onclick="saveBench();closeBench()">💾 حفظ</button></div>
+  </div>
+</div>
+
+<!-- Shift Timing Modal -->
+<div class="modal-bg" id="shiftM">
+  <div class="modal modal-sm">
+    <div class="modal-hdr"><h3>⏰ توقيت الوردية</h3><button class="modal-close" onclick="document.getElementById('shiftM').classList.remove('open')">✕</button></div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--t2);line-height:1.7;margin-bottom:16px;background:var(--bg3);padding:12px;border-radius:var(--r);">
+        الوردية اللي بتعدّي منتصف الليل بتُحسب كلها على يوم بدايتها. أي وقت قبل ساعة البداية بيُحسب على وردية اليوم السابق — فالسيارات اللي دخلت قبل منتصف الليل تفضل في نفس التقرير.
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--t2);display:block;margin-bottom:6px;">بداية الوردية (ساعة 0–23)</label>
+          <input type="number" id="shiftStartInp" min="0" max="23" style="width:100%;padding:12px;border:1.5px solid var(--bdr2);border-radius:var(--r);font-family:var(--mono);font-size:18px;text-align:center;font-weight:700;">
+          <div id="shiftStartLbl" style="font-size:11px;color:var(--t2);text-align:center;margin-top:4px;"></div>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--t2);display:block;margin-bottom:6px;">نهاية الوردية (ساعة 0–23)</label>
+          <input type="number" id="shiftEndInp" min="0" max="23" style="width:100%;padding:12px;border:1.5px solid var(--bdr2);border-radius:var(--r);font-family:var(--mono);font-size:18px;text-align:center;font-weight:700;">
+          <div id="shiftEndLbl" style="font-size:11px;color:var(--t2);text-align:center;margin-top:4px;"></div>
+        </div>
+      </div>
+      <div id="shiftPreview" style="font-size:13px;font-weight:700;color:var(--red);text-align:center;margin-top:16px;"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btghost" onclick="document.getElementById('shiftM').classList.remove('open')">إلغاء</button>
+      <button class="btn btr" onclick="saveShiftSettings()">💾 حفظ التوقيت</button>
+    </div>
+  </div>
+</div>
+
+<!-- DB Delete Modal (Developer) -->
+<div class="modal-bg" id="dbDeleteM">
+  <div class="modal modal-sm">
+    <div class="modal-hdr"><h3>🗑️ حذف بيانات الجداول</h3><button class="modal-close" onclick="document.getElementById('dbDeleteM').classList.remove('open')">✕</button></div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--red);background:rgba(192,57,43,0.08);padding:10px;border-radius:var(--r);margin-bottom:14px;font-weight:600;">⚠️ الحذف نهائي ولا يمكن التراجع عنه. للمطوّر فقط.</div>
+      <div id="dbDeleteList"></div>
+    </div>
+    <div class="modal-foot"><button class="btn btghost" onclick="document.getElementById('dbDeleteM').classList.remove('open')">إغلاق</button></div>
+  </div>
+</div>
+
+<!-- DB Space Modal (Developer) -->
+<div class="modal-bg" id="dbSpaceM">
+  <div class="modal modal-sm">
+    <div class="modal-hdr"><h3>💾 مساحة قاعدة البيانات</h3><button class="modal-close" onclick="document.getElementById('dbSpaceM').classList.remove('open')">✕</button></div>
+    <div class="modal-body"><div id="dbSpaceBody"></div></div>
+    <div class="modal-foot"><button class="btn btgray btn-sm" onclick="renderDbSpace()">🔄 تحديث</button><button class="btn btghost" onclick="document.getElementById('dbSpaceM').classList.remove('open')">إغلاق</button></div>
   </div>
 </div>
 
@@ -1002,7 +1061,7 @@ var db = {
     return sbc.from('app_users').select('username,display_name,role,stations').order('username')
       .then(function(res){
         if(res.error) throw new Error(res.error.message);
-        return (res.data||[]).map(function(u){
+        return (res.data||[]).filter(function(u){ return u.role !== 'developer'; }).map(function(u){
           return { username:u.username, displayName:u.display_name||u.username, role:u.role, stations:u.stations||[] };
         });
       });
@@ -1057,6 +1116,38 @@ var db = {
     var sbc = _initSB();
     return sbc.from('activity_log').select('*').order('ts', {ascending:false}).limit(limit||50)
       .then(function(res){ return (res.data||[]).map(function(r){ return { ts:r.ts, user:r.username, action:r.action, detail:r.detail }; }); });
+  },
+  getSettings: function() {
+    var sbc = _initSB();
+    return sbc.from('app_settings').select('key,value')
+      .then(function(res){ var o={}; (res.data||[]).forEach(function(r){ o[r.key]=r.value; }); return o; });
+  },
+  saveSetting: function(key, value) {
+    var sbc = _initSB();
+    return sbc.from('app_settings').upsert({ key:key, value:String(value), updated_at:new Date().toISOString() }, { onConflict:'key' })
+      .then(function(res){ return { success: !res.error, error: res.error&&res.error.message }; });
+  },
+  initDefaults: function() {
+    var sbc = _initSB();
+    var stRows = ST_DEFAULT.map(function(s,i){ return { key:s.key, label:s.label, en:s.en||s.key, icon:s.icon||'🏭', bench:s.bench, ord:s.order||i+1 }; });
+    return Promise.all([
+      sbc.from('stations').upsert(stRows, { onConflict:'key' }),
+      sbc.from('app_settings').upsert([{key:'shift_start_hour',value:String(SHIFT_START_HOUR)},{key:'shift_end_hour',value:String(SHIFT_END_HOUR)}], { onConflict:'key' })
+    ]).then(function(r){ var err = (r[0].error||r[1].error); return { success: !err, error: err&&err.message }; });
+  },
+  clearTable: function(table) {
+    var sbc = _initSB();
+    var q = sbc.from(table).delete();
+    if(table==='trips') q = q.neq('id','');
+    else if(table==='qr_codes') q = q.neq('code','');
+    else if(table==='stations') q = q.neq('key','');
+    else if(table==='app_users') q = q.neq('username','').neq('role','developer').neq('username','admin');
+    else q = q.neq('id', -1);
+    return q.then(function(res){ return { success: !res.error, error: res.error&&res.error.message }; });
+  },
+  dbStats: function() {
+    var sbc = _initSB();
+    return sbc.rpc('get_db_stats').then(function(res){ if(res.error) throw new Error(res.error.message); return res.data; });
   }
 };
 
@@ -1154,7 +1245,7 @@ function _doInit() {
 
   startQRListener();
 
-  ['benchM','journeyM','warnM','addUserM','linkQRM','stagesMgrM'].forEach(function(id) {
+  ['benchM','journeyM','warnM','addUserM','linkQRM','stagesMgrM','shiftM','dbDeleteM','dbSpaceM'].forEach(function(id) {
     var el = document.getElementById(id);
     if(el) el.addEventListener('click', function(e) { if(e.target === el) { if(id==='warnM') closeWarn(); else el.classList.remove('open'); } });
   });
@@ -1213,12 +1304,14 @@ function afterLogin() {
   document.getElementById('s-login').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   document.getElementById('navUname').textContent = sess.displayName || sess.username || '—';
-  document.getElementById('navRole').textContent = {admin:'مدير',supervisor:'مشرف',operator:'مشغّل'}[sess.role] || sess.role || '—';
+  document.getElementById('navRole').textContent = {admin:'مدير',supervisor:'مشرف',operator:'مشغّل',developer:'مطوّر'}[sess.role] || sess.role || '—';
 
   var allowedSt = (sess.stations && sess.stations.length > 0) ? sess.stations : null;
-  var isAll = !allowedSt || sess.role === 'admin' || sess.role === 'supervisor';
+  var isAll = !allowedSt || sess.role === 'admin' || sess.role === 'supervisor' || sess.role === 'developer';
   sess._isAll = isAll;
   sess._allowed = isAll ? ST.map(function(s){ return s.key; }) : allowedSt;
+  var firstKey = ST[0] ? ST[0].key : null;
+  sess._canEntry = isAll || (firstKey && sess._allowed.indexOf(firstKey) !== -1);
 
   var sel = document.getElementById('stSel');
   if(sel) {
@@ -1231,13 +1324,17 @@ function afterLogin() {
   var role = sess.role;
   var niAdmin = document.getElementById('niAdmin');
   var adminSection = document.getElementById('adminSection');
-  if(role !== 'admin') { if(niAdmin) niAdmin.style.display='none'; if(adminSection) adminSection.style.display='none'; }
+  if(role !== 'admin' && role !== 'developer') { if(niAdmin) niAdmin.style.display='none'; if(adminSection) adminSection.style.display='none'; }
 
   if(role === 'operator' && !isAll) {
     ['dash','reports','bench'].forEach(function(pg) { var ni = document.querySelector('.ni[data-page="'+pg+'"]'); if(ni) ni.style.display='none'; });
-    var niS1 = document.querySelector('.ni[data-page="scan1"]'); if(niS1) niS1.style.display='none';
-    setTimeout(function(){ goPage('scan2', document.querySelector('.ni[data-page="scan2"]')); }, 100);
-    var tb = document.querySelector('.tb-icon-btn[onclick*="scan1"]'); if(tb) tb.style.display='none';
+    var niS1 = document.querySelector('.ni[data-page="scan1"]');
+    var tb = document.querySelector('.tb-icon-btn[onclick*="scan1"]');
+    if(!sess._canEntry) {
+      if(niS1) niS1.style.display='none';
+      if(tb) tb.style.display='none';
+    }
+    setTimeout(function(){ var pg = sess._canEntry ? 'scan1' : 'scan2'; goPage(pg, document.querySelector('.ni[data-page="'+pg+'"]')); }, 100);
   } else if(role === 'operator' && isAll) {
     if(niAdmin) niAdmin.style.display='none'; if(adminSection) adminSection.style.display='none';
   }
@@ -1255,6 +1352,8 @@ function afterLogin() {
     } else { badgesEl.innerHTML = '<span style="font-size:10px;color:var(--t2);">✅ جميع المحطات مسموحة</span>'; }
   }
 
+  buildStationCards();
+  buildAdminGrid();
   updDay();
   updScanDaySummary();
   if(!(role === 'operator' && !isAll)) renderDash();
@@ -1289,7 +1388,7 @@ function goPage(page, navEl) {
   if(page==='reports') renderReports();
   if(page==='bench') buildBenchGrid();
   if(page==='scan1') updDay();
-  if(page==='scan2') { updStSel(); updDay(); }
+  if(page==='scan2') { buildStationCards(); updStSel(); updDay(); }
   closeMobNav();
 }
 function openMobNav() { document.getElementById('nav').classList.add('mob-open'); document.getElementById('mobOverlay').classList.add('show'); }
@@ -1302,6 +1401,7 @@ function toggleNav() { navCollapsed = !navCollapsed; document.getElementById('na
 ════════════════════════ */
 function loadData() {
   if(DEV) { setTimeout(function(){ renderDash(); updDay(); }, 300); return; }
+  loadSettings();
   setLd(true);
   db.loadAll()
     .then(function(d) {
@@ -1320,6 +1420,14 @@ function loadData() {
       showToast('te','✅','تحديث','تم تحديث البيانات','');
     })
     .catch(function(e){ setLd(false); showToast('tw','⚠️','خطأ',e.message,''); });
+}
+function loadSettings() {
+  if(DEV) return;
+  db.getSettings().then(function(o){
+    var s = parseInt(o.shift_start_hour), e = parseInt(o.shift_end_hour);
+    if(s>=0 && s<=23){ SHIFT_START_HOUR = s; localStorage.setItem('c3aShiftStart', s); }
+    if(e>=0 && e<=23){ SHIFT_END_HOUR = e; localStorage.setItem('c3aShiftEnd', e); }
+  }).catch(function(){});
 }
 function silentSync() {
   if(DEV || isSyncing || !sess) return;
@@ -1820,22 +1928,40 @@ function renderTV() {
 
   var clk = document.getElementById('tvClock'); if(clk) clk.textContent = now;
 
+  var activeElapsed = act.map(function(t){
+    var fi = ST.map(function(s){ return t.stations&&t.stations[s.key]&&t.stations[s.key].in; }).filter(Boolean)[0];
+    return fi ? tdiff(fi, now) : null;
+  }).filter(function(v){ return v!=null; });
+  var avgLive = activeElapsed.length ? Math.round(activeElapsed.reduce(function(a,b){return a+b;},0)/activeElapsed.length) : 0;
+
   var kpis = document.getElementById('tvKpis');
   if(kpis) kpis.innerHTML = [
     {l:'إجمالي اليوم', v:tt.length, c:'#fff'},
     {l:'مكتملة', v:comp.length, c:'#2ecc71'},
-    {l:'جارية', v:act.length, c:'#3b82f6'},
-    {l:'متوسط الوقت', v:(comp.length?Math.round(comp.reduce(function(a,t){return a+(t.totalDur||0);},0)/comp.length):0)+' د', c:'#f1c40f'}
+    {l:'جارية الآن', v:act.length, c:'#3b82f6'},
+    {l:'متوسط الوقت (لحظي)', v:(avgLive||0)+' د', c:'#f1c40f'}
   ].map(function(k){ return '<div style="background:#111827;border-radius:14px;padding:18px;text-align:center"><div style="font-size:13px;color:#9ca3af">'+k.l+'</div><div style="font-size:40px;font-weight:800;color:'+k.c+'">'+k.v+'</div></div>'; }).join('');
 
   var stEl = document.getElementById('tvStations');
   if(stEl) stEl.innerHTML = ST.map(function(s){
-    var inside = tt.filter(function(t){ var st=t.stations&&t.stations[s.key]; return st&&st.in&&!st.out; }).length;
+    var insideCars = tt.filter(function(t){ var st=t.stations&&t.stations[s.key]; return st&&st.in&&!st.out; });
     var b = bench[s.key]||s.bench;
     var maxOver = 0;
-    tt.forEach(function(t){ var st=t.stations&&t.stations[s.key]; if(st&&st.in&&!st.out){ var d=tdiff(st.in,now); if(d>maxOver) maxOver=d; } });
-    var col = !inside?'#1f2937':maxOver>b*1.2?'#7f1d1d':maxOver>b?'#78350f':'#14532d';
-    return '<div style="background:'+col+';border-radius:12px;padding:14px;text-align:center"><div style="font-size:26px">'+s.icon+'</div><div style="font-size:12px;color:#cbd5e1;margin:4px 0">'+s.label+'</div><div style="font-size:32px;font-weight:800">'+inside+'</div></div>';
+    insideCars.forEach(function(t){ var d=tdiff(t.stations[s.key].in,now); if(d>maxOver) maxOver=d; });
+    var col = !insideCars.length?'#1f2937':maxOver>b*1.2?'#7f1d1d':maxOver>b?'#78350f':'#14532d';
+    var rows = insideCars.length ? insideCars.map(function(t){
+      var d = tdiff(t.stations[s.key].in, now); var over = d>b;
+      return '<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid #243043"><span style="font-weight:800;font-family:var(--mono)">'+t.num+'</span><span style="color:'+(over?'#ff6b5b':'#86efac')+';font-weight:700">'+d+' د'+(over?(' +'+(d-b)):'')+'</span></div>';
+    }).join('') : '<div style="color:#9ca3af;padding:6px 0">لا توجد سيارات داخل المحطة</div>';
+    return '<div class="tv-st" onclick="this.classList.toggle(\'tv-st-open\')" style="position:relative;background:'+col+';border-radius:12px;padding:14px;text-align:center;cursor:pointer">'
+      + '<div style="font-size:26px">'+s.icon+'</div>'
+      + '<div style="font-size:12px;color:#cbd5e1;margin:4px 0">'+s.label+'</div>'
+      + '<div style="font-size:32px;font-weight:800">'+insideCars.length+'</div>'
+      + '<div class="tv-tip" style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:8px;background:#0b1220;border:1px solid #334155;border-radius:10px;padding:10px 12px;min-width:170px;max-height:240px;overflow:auto;z-index:30;text-align:right;box-shadow:0 8px 24px rgba(0,0,0,.6)">'
+        + '<div style="font-size:12px;color:#93c5fd;font-weight:700;margin-bottom:6px">'+s.icon+' '+s.label+' — '+insideCars.length+' داخل (معيار '+b+' د)</div>'
+        + rows
+      + '</div>'
+      + '</div>';
   }).join('');
 
   var delEl = document.getElementById('tvDelayed');
@@ -1900,9 +2026,9 @@ function closeJourney() { document.getElementById('journeyM').classList.remove('
    SCAN — ENTRY
 ════════════════════════ */
 function regEntry() {
-  if(sess && !sess._isAll && sess.role === 'operator') {
-    setZ('s','qerr','🚫','غير مصرح','ماسح الدخول متاح للمشرف والمدير فقط','');
-    showToast('tw','🚫','خطأ','ليس لديك صلاحية تسجيل الدخول','');
+  if(sess && !sess._isAll && sess.role === 'operator' && !sess._canEntry) {
+    setZ('s','qerr','🚫','غير مصرح','تسجيل سيارة جديدة متاح لمشغّل المرحلة الأولى فقط','');
+    showToast('tw','🚫','خطأ','ليس لديك صلاحية تسجيل سيارة جديدة','');
     pb1=''; updP(1); return;
   }
   var raw = pb1.trim();
@@ -1945,9 +2071,37 @@ function updStSel() {
   var k = (document.getElementById('stSel') && document.getElementById('stSel').value || '');
   if(!k) return;
   var cnt = inside(k);
-  document.getElementById('stInsideCnt').textContent = cnt;
+  var ic = document.getElementById('stInsideCnt'); if(ic) ic.textContent = cnt;
   var s=ST.find(function(x){ return x.key===k; });
   if(s) setZ('st','qblue',s.icon,s.label,'جاهز للمسح — امسح QR السيارة','');
+}
+
+function buildStationCards() {
+  var wrap = document.getElementById('stCards');
+  if(!wrap) return;
+  var allowed = (sess && sess._allowed) || ST.map(function(s){ return s.key; });
+  var list = ST.filter(function(s){ return !sess || sess._isAll || allowed.indexOf(s.key) !== -1; });
+  wrap.innerHTML = list.map(function(s){
+    var cnt = inside(s.key);
+    return '<div onclick="pickStation(\''+s.key+'\')" style="cursor:pointer;background:var(--bg2);border:2px solid var(--bdr2);border-radius:16px;padding:16px 12px;text-align:center;min-width:104px;flex:1;transition:all .15s;" '
+      + 'onmouseover="this.style.borderColor=\'var(--red)\';this.style.transform=\'translateY(-2px)\'" '
+      + 'onmouseout="this.style.borderColor=\'var(--bdr2)\';this.style.transform=\'none\'">'
+      + '<div style="font-size:30px">'+s.icon+'</div>'
+      + '<div style="font-size:13px;font-weight:700;margin:6px 0 2px">'+s.label+'</div>'
+      + '<div style="font-size:11px;color:var(--t2)">'+cnt+' داخل الآن</div>'
+      + '<div style="margin-top:8px;font-size:11px;font-weight:700;color:var(--red)">📷 افتح الماسح</div>'
+      + '</div>';
+  }).join('');
+}
+function pickStation(key) {
+  var sel = document.getElementById('stSel');
+  if(sel) sel.value = key;
+  updStSel();
+  openScanner('station');
+}
+function toggleStKb() {
+  var w = document.getElementById('stKbWrap');
+  if(w) w.style.display = (w.style.display === 'none' || !w.style.display) ? 'block' : 'none';
 }
 
 function regStation() {
@@ -2124,12 +2278,59 @@ function openBench() { buildBenchGrid(); document.getElementById('benchM').class
 function closeBench() { document.getElementById('benchM').classList.remove('open'); }
 
 /* ════════════════════════
+   SHIFT TIMING SETTINGS
+════════════════════════ */
+function _hourLabel(h) {
+  h = ((parseInt(h)||0) % 24 + 24) % 24;
+  var ampm = h < 12 ? 'صباحاً' : 'مساءً';
+  var h12 = h % 12; if(h12 === 0) h12 = 12;
+  return h12 + ' ' + ampm + ' (' + String(h).padStart(2,'0') + ':00)';
+}
+function _updShiftPreview() {
+  var s = document.getElementById('shiftStartInp'), e = document.getElementById('shiftEndInp');
+  var sl = document.getElementById('shiftStartLbl'), el = document.getElementById('shiftEndLbl');
+  var pv = document.getElementById('shiftPreview');
+  if(sl) sl.textContent = _hourLabel(s.value);
+  if(el) el.textContent = _hourLabel(e.value);
+  if(pv) {
+    var sh = parseInt(s.value), eh = parseInt(e.value);
+    var cross = (eh <= sh) ? ' (تعبر منتصف الليل)' : '';
+    pv.textContent = 'الوردية: من ' + _hourLabel(sh) + ' إلى ' + _hourLabel(eh) + cross;
+  }
+}
+function openShiftSettings() {
+  var s = document.getElementById('shiftStartInp'), e = document.getElementById('shiftEndInp');
+  if(s) s.value = SHIFT_START_HOUR;
+  if(e) e.value = SHIFT_END_HOUR;
+  if(s) s.oninput = _updShiftPreview;
+  if(e) e.oninput = _updShiftPreview;
+  _updShiftPreview();
+  document.getElementById('shiftM').classList.add('open');
+}
+function saveShiftSettings() {
+  var s = parseInt(document.getElementById('shiftStartInp').value);
+  var e = parseInt(document.getElementById('shiftEndInp').value);
+  if(!(s>=0 && s<=23) || !(e>=0 && e<=23)) { showToast('tw','⚠️','توقيت','أدخل ساعة صحيحة بين 0 و23',''); return; }
+  SHIFT_START_HOUR = s; SHIFT_END_HOUR = e;
+  localStorage.setItem('c3aShiftStart', s);
+  localStorage.setItem('c3aShiftEnd', e);
+  if(!DEV) {
+    Promise.all([ db.saveSetting('shift_start_hour', s), db.saveSetting('shift_end_hour', e) ])
+      .then(function(){ showToast('tg','✅','توقيت الوردية','تم الحفظ — يطبَّق على البرنامج والتقارير',''); })
+      .catch(function(err){ showToast('tw','⚠️','خطأ',(err&&err.message)||'فشل الحفظ',''); });
+  } else { showToast('tg','✅','توقيت الوردية','تم الحفظ محلياً',''); }
+  document.getElementById('shiftM').classList.remove('open');
+  renderDash(); updDay();
+}
+
+/* ════════════════════════
    ADMIN
 ════════════════════════ */
 function buildAdminGrid() {
   var g = document.getElementById('adminGrid');
   if(!g) return;
   var items = [
+    {ico:'⏰',lbl:'توقيت الوردية',     sub:'تحديد بداية ونهاية الوردية',     fn:"openShiftSettings()"},
     {ico:'🎯',lbl:'المعايير الزمنية',  sub:'تعديل أوقات المحطات',            fn:"openBench()"},
     {ico:'🔧',lbl:'إدارة المراحل',     sub:'ترتيب وإضافة مراحل جديدة',       fn:"openStagesMgr()"},
     {ico:'👥',lbl:'المستخدمون',        sub:'إدارة الأدوار والصلاحيات',        fn:"togglePanel('usersPanel')"},
@@ -2139,6 +2340,16 @@ function buildAdminGrid() {
     {ico:'📄',lbl:'تصدير PDF',         sub:'تقرير شامل بالرسوم',             fn:"expPDF()"}
   ];
   g.innerHTML = items.map(function(i){ return '<div class="acard" onclick="'+i.fn+'"><div class="acard-ico">'+i.ico+'</div><div class="acard-lbl">'+i.lbl+'</div><div class="acard-sub">'+i.sub+'</div></div>'; }).join('');
+
+  if(sess && sess.role === 'developer') {
+    var devItems = [
+      {ico:'🗄️',lbl:'تهيئة قاعدة البيانات', sub:'إنشاء/استرجاع البيانات الافتراضية', fn:"initDatabase()"},
+      {ico:'💾',lbl:'مساحة قاعدة البيانات',  sub:'الحجم وعدد الصفوف لكل جدول',       fn:"openDbSpace()"},
+      {ico:'🗑️',lbl:'حذف بيانات الجداول',   sub:'تفريغ جدول معيّن (للمطوّر فقط)',   fn:"openDbDelete()"}
+    ];
+    g.innerHTML += '<div style="grid-column:1/-1;margin:6px 0 2px;font-size:12px;font-weight:700;color:var(--red);border-top:1px dashed var(--bdr);padding-top:12px;">🛠️ أدوات المطوّر</div>'
+      + devItems.map(function(i){ return '<div class="acard" style="border:1.5px solid var(--red);" onclick="'+i.fn+'"><div class="acard-ico">'+i.ico+'</div><div class="acard-lbl">'+i.lbl+'</div><div class="acard-sub">'+i.sub+'</div></div>'; }).join('');
+  }
 }
 function togglePanel(id) {
   var p = document.getElementById(id);
@@ -2146,6 +2357,98 @@ function togglePanel(id) {
   var vis = p.style.display !== 'none';
   p.style.display = vis ? 'none' : 'block';
   if(!vis && id === 'usersPanel') renderUsers();
+}
+
+/* ════════════════════════
+   DEVELOPER TOOLS
+════════════════════════ */
+function _devOnly() {
+  if(!sess || sess.role !== 'developer') { showToast('tw','🚫','مطوّر','هذه الأداة للمطوّر فقط',''); return false; }
+  return true;
+}
+function initDatabase() {
+  if(!_devOnly()) return;
+  openWarn('🗄️','تهيئة قاعدة البيانات؟','إنشاء/استرجاع المحطات والإعدادات الافتراضية (لن يُحذف أي شيء موجود)', function(){
+    if(DEV){ showToast('tx','ℹ️','Dev','وضع التطوير',''); return; }
+    setLd(true);
+    db.initDefaults().then(function(r){
+      setLd(false);
+      if(r.success){ showToast('tg','✅','تهيئة','تمت التهيئة بنجاح',''); loadData(); }
+      else showToast('tw','⚠️','خطأ',r.error||'فشل','');
+    }).catch(function(e){ setLd(false); showToast('tw','⚠️','خطأ',e.message,''); });
+  });
+}
+var DB_TABLES = [
+  {t:'trips',        lbl:'الرحلات',             note:'يحذف الرحلات وكل حركات المحطات المرتبطة'},
+  {t:'stage_events', lbl:'حركات المحطات',       note:''},
+  {t:'qr_codes',     lbl:'رموز QR',             note:''},
+  {t:'activity_log', lbl:'سجل النشاط',          note:''},
+  {t:'stations',     lbl:'المحطات (التعريفات)', note:'بعد الحذف استخدم «تهيئة» لإعادتها'},
+  {t:'app_users',    lbl:'المستخدمون',          note:'يُستثنى المدير والمطوّر'}
+];
+function openDbDelete() {
+  if(!_devOnly()) return;
+  document.getElementById('dbDeleteM').classList.add('open');
+  renderDbDelete();
+}
+function renderDbDelete() {
+  var el = document.getElementById('dbDeleteList'); if(!el) return;
+  el.innerHTML = '<div style="text-align:center;color:var(--t2);padding:14px;">جارٍ تحميل الأعداد…</div>';
+  var counts = {};
+  db.dbStats().then(function(d){ (d&&d.tables||[]).forEach(function(t){ counts[t.name]=t.rows; }); })
+    .catch(function(){}).then(function(){
+      el.innerHTML = DB_TABLES.map(function(x){
+        var c = counts[x.t]; var cTxt = (c==null?'—':c) + ' صف';
+        return '<div style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg3);border-radius:var(--r);margin-bottom:8px;border:1px solid var(--bdr);">'
+          + '<div style="flex:1;"><div style="font-weight:700;font-size:13px;">'+x.lbl+'</div>'
+          + '<div style="font-size:11px;color:var(--t2);font-family:var(--mono)">'+x.t+' · '+cTxt+'</div>'
+          + (x.note?('<div style="font-size:10px;color:var(--orange);margin-top:2px;">⚠ '+x.note+'</div>'):'')+'</div>'
+          + '<button class="btn btr btn-sm" onclick="deleteTableData(\''+x.t+'\',\''+x.lbl+'\')">🗑 حذف الكل</button></div>';
+      }).join('');
+    });
+}
+function deleteTableData(table, label) {
+  if(!_devOnly()) return;
+  openWarn('🗑️','حذف كل بيانات «'+label+'»؟','هذا الإجراء لا يمكن التراجع عنه!', function(){
+    if(DEV){ showToast('tx','ℹ️','Dev','وضع التطوير',''); return; }
+    setLd(true);
+    db.clearTable(table).then(function(r){
+      setLd(false);
+      if(r.success){ showToast('tg','✅','حذف','تم تفريغ «'+label+'»',''); db.log((sess&&sess.username)||'?','DB_CLEAR',table); renderDbDelete(); loadData(); }
+      else showToast('tw','⚠️','خطأ',r.error||'فشل','');
+    }).catch(function(e){ setLd(false); showToast('tw','⚠️','خطأ',e.message,''); });
+  });
+}
+function openDbSpace() {
+  if(!_devOnly()) return;
+  document.getElementById('dbSpaceM').classList.add('open');
+  renderDbSpace();
+}
+function renderDbSpace() {
+  var el = document.getElementById('dbSpaceBody'); if(!el) return;
+  el.innerHTML = '<div style="text-align:center;color:var(--t2);padding:20px;">جارٍ الحساب…</div>';
+  db.dbStats().then(function(d){
+    var totalBytes = (d && d.total_bytes) || 0;
+    var limitBytes = 500 * 1024 * 1024;
+    var pct = Math.min(100, Math.round(totalBytes/limitBytes*100));
+    var mb = (totalBytes/1048576).toFixed(1);
+    var col = pct>85?'var(--red)':pct>60?'var(--orange)':'var(--green)';
+    var html = '<div style="text-align:center;margin-bottom:16px;">'
+      + '<div style="font-size:36px;font-weight:800;color:'+col+'">'+mb+' <span style="font-size:16px;">ميجابايت</span></div>'
+      + '<div style="font-size:12px;color:var(--t2);">من أصل 500 ميجا (الباقة المجانية) · '+pct+'%</div>'
+      + '<div style="height:10px;background:var(--bg4);border-radius:20px;overflow:hidden;margin-top:10px;"><div style="height:100%;width:'+pct+'%;background:'+col+';"></div></div>'
+      + '</div>';
+    var tables = (d && d.tables) || [];
+    html += '<div class="tbl-wrap"><table><thead><tr><th>الجدول</th><th>الصفوف</th><th>الحجم</th></tr></thead><tbody>';
+    tables.forEach(function(t){
+      var sz = t.bytes>1048576 ? (t.bytes/1048576).toFixed(2)+' م.ب' : Math.round(t.bytes/1024)+' ك.ب';
+      html += '<tr><td style="font-family:var(--mono);font-size:12px;">'+t.name+'</td><td>'+t.rows+'</td><td>'+sz+'</td></tr>';
+    });
+    html += '</tbody></table></div>';
+    el.innerHTML = html;
+  }).catch(function(e){
+    el.innerHTML = '<div style="text-align:center;color:var(--red);padding:20px;">تعذّر الحساب: '+e.message+'<br><span style="font-size:11px;color:var(--t2)">شغّل developer_setup.sql الذي ينشئ الدالة get_db_stats</span></div>';
+  });
 }
 
 /* ════════════════════════
@@ -2939,7 +3242,10 @@ function qrpSaveCodes() {
 /* ════════════════════════
    HELPERS
 ════════════════════════ */
-function today()  { return new Date().toISOString().slice(0,10); }
+var SHIFT_START_HOUR = (function(){ var v=parseInt(localStorage.getItem('c3aShiftStart')); return (v>=0&&v<=23)?v:16; })(); /* بداية الوردية — افتراضي 4 عصراً، قابل للتعديل من الإعدادات */
+var SHIFT_END_HOUR   = (function(){ var v=parseInt(localStorage.getItem('c3aShiftEnd'));   return (v>=0&&v<=23)?v:6;  })(); /* نهاية الوردية — افتراضي 6 صباحاً */
+function _ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function today()  { var d=new Date(); if(d.getHours() < SHIFT_START_HOUR) d.setDate(d.getDate()-1); return _ymd(d); }
 function nowT()   { var n=new Date(); return ""+String(n.getHours()).padStart(2,'0')+":"+String(n.getMinutes()).padStart(2,'0')+""; }
 function tdiff(t1,t2) {
   var p1=t1.split(':'), p2=t2.split(':');
@@ -3007,20 +3313,64 @@ function closeWarn(confirmed) {
 }
 
 /* ════════════════════════
-   PWA — Manifest
+   PWA — Manifest + التثبيت
 ════════════════════════ */
 (function(){
   try {
+    var icon = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23c0392b' rx='20'/><text y='.9em' font-size='52' x='14' fill='white' font-weight='900'>3A</text></svg>";
     var manifest = {
       name: 'Cairo 3A Poultry', short_name: 'Cairo 3A', start_url: '.', display: 'standalone',
-      background_color: '#c0392b', theme_color: '#c0392b',
-      icons: [{ src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23c0392b' rx='20'/><text y='.9em' font-size='52' x='14' fill='white' font-weight='900'>3A</text></svg>", sizes: 'any', type: 'image/svg+xml' }]
+      background_color: '#c0392b', theme_color: '#c0392b', orientation: 'any',
+      icons: [
+        { src: icon, sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
+        { src: icon, sizes: '512x512', type: 'image/svg+xml', purpose: 'any maskable' }
+      ]
     };
     var blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
     var mlink = document.getElementById('manifestLink');
     if(mlink) mlink.href = URL.createObjectURL(blob);
   } catch(e) {}
+
+  // تسجيل Service Worker (اختياري — يحسّن التثبيت ويتيح العمل دون اتصال)
+  if('serviceWorker' in navigator){ try { navigator.serviceWorker.register('sw.js').catch(function(){}); } catch(e){} }
 })();
+
+var _deferredPrompt = null;
+function _isStandalone(){ return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
+function _isiOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+
+window.addEventListener('beforeinstallprompt', function(e){
+  e.preventDefault();
+  _deferredPrompt = e;
+  if(!_isStandalone()){ var b=document.getElementById('installBtn'); if(b) b.style.display='flex'; }
+});
+window.addEventListener('appinstalled', function(){
+  _deferredPrompt = null;
+  var b=document.getElementById('installBtn'); if(b) b.style.display='none';
+  try { showToast('tg','✅','تثبيت','تم تثبيت التطبيق على جهازك',''); } catch(e){}
+});
+
+function installApp(){
+  if(_isStandalone()){ showToast('te','ℹ️','تثبيت','التطبيق مثبّت بالفعل على جهازك',''); return; }
+  if(_deferredPrompt){
+    _deferredPrompt.prompt();
+    _deferredPrompt.userChoice.then(function(res){
+      _deferredPrompt = null;
+      var b=document.getElementById('installBtn'); if(b) b.style.display='none';
+    });
+    return;
+  }
+  if(_isiOS()){
+    openWarn('📲','تثبيت على الآيفون','افتح الموقع في Safari، اضغط زر المشاركة ⬆️ في الأسفل، ثم اختر «إضافة إلى الشاشة الرئيسية» (Add to Home Screen).', null);
+  } else {
+    openWarn('📲','تثبيت التطبيق','من قائمة المتصفح (⋮) فوق، اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية». يُفضّل فتح الموقع في Chrome.', null);
+  }
+}
+// الآيفون لا يطلق beforeinstallprompt — نُظهر الزر له يدوياً لعرض التعليمات
+window.addEventListener('load', function(){
+  if(!_isStandalone() && (_isiOS())){ var b=document.getElementById('installBtn'); if(b) b.style.display='flex'; }
+});
+
 </script>
 </body>
 </html>
