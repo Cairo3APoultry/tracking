@@ -20,7 +20,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -610,6 +611,9 @@ tbody tr:last-child{border-bottom:none;}
             <button class="btn btr btn-sm" onclick="loadReports()">📊 تحليل</button>
             <button class="btn btgray btn-sm" onclick="setRangePr(7)">آخر 7 أيام</button>
             <button class="btn btgray btn-sm" onclick="setRangePr(30)">آخر 30 يوم</button>
+            <span style="flex:1"></span>
+            <button class="btn btn-sm" style="background:#1d6f42;color:#fff" onclick="expXLS()">📊 تصدير Excel</button>
+            <button class="btn btr btn-sm" onclick="expPDF()">📄 تصدير PDF</button>
           </div>
           <div class="charts-grid">
             <div class="card">
@@ -2801,13 +2805,25 @@ function makePDFChart(config, w, h) {
     } catch(e) { try{document.body.removeChild(cv);}catch(_){} resolve(null); }
   });
 }
+/* يحدّد فترة التصدير حسب الصفحة المفتوحة: صفحة التقارير تستخدم rFrom/rTo، غيرها تستخدم فلاتر لوحة التحكم */
+function _expCtx() {
+  var onReports = ((document.querySelector('.screen.active')||{}).id === 'p-reports');
+  if(onReports) {
+    var rf = (document.getElementById('rFrom')||{}).value || today();
+    var rt = (document.getElementById('rTo')||{}).value || today();
+    return { from:rf, to:rt, list: mergeDupTrips(trips.filter(function(x){ var d=String(x.date||'').slice(0,10); return d>=rf && d<=rt; })) };
+  }
+  return { from:(document.getElementById('fFrom')||{}).value || today(), to:(document.getElementById('fTo')||{}).value || today(), list: mergeDupTrips(getF()) };
+}
+
 function expPDF() {
-  var list = getF();
+  var _x = _expCtx();
+  var list = _x.list;
   if(!list.length) { showToast('tw','⚠️','PDF','لا توجد بيانات للفترة المحددة',''); return; }
   showToast('tx','⏳','PDF','جارٍ إنشاء التقرير الاحترافي الشامل…','');
   setLd(true);
-  var from  = document.getElementById('fFrom').value;
-  var to    = document.getElementById('fTo').value;
+  var from  = _x.from;
+  var to    = _x.to;
   var uname = (sess && sess.displayName) || (sess && sess.username) || 'System';
   var comp = list.filter(function(t){ return t.completed||ST.every(function(s){ return t.stations&&t.stations[s.key]&&t.stations[s.key].out; }); });
   var act = list.filter(function(t){ return !t.completed&&Object.keys(t.stations||{}).length>0&&!ST.every(function(s){ return t.stations&&t.stations[s.key]&&t.stations[s.key].out; }); });
@@ -2982,6 +2998,20 @@ function expPDF() {
     }
     pFtr();
 
+    if(imgPareto && delayList.length) {
+      doc.addPage(); pHdr('Delay Pareto Analysis (80/20 Rule)');
+      doc.setFontSize(13); doc.setFont(defaultFont,'bold'); doc.setTextColor(15, 23, 42);
+      doc.text('Where the Delay Comes From', 15, 35);
+      doc.setFontSize(10); doc.setFont(defaultFont,'normal'); doc.setTextColor(71, 85, 105);
+      doc.text('The red bars rank vehicles by total wasted minutes; the blue line shows the cumulative share of all delay.', 15, 42);
+      doc.setFont(defaultFont,'bold'); doc.setTextColor(192, 57, 43);
+      doc.text('Key insight: ' + pareto80 + ' vehicle(s) account for ~80% of the entire period\'s delay (' + totalWaste + ' min total).', 15, 49);
+      doc.setFillColor(255,255,255); doc.roundedRect(15, 54, PW-30, 132, 4, 4, 'F');
+      doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.5); doc.roundedRect(15, 54, PW-30, 132, 4, 4, 'S');
+      doc.addImage(imgPareto,'PNG', 20, 59, PW-40, 122);
+      pFtr();
+    }
+
     doc.addPage(); pHdr('Detailed Benchmark Matrix');
     var bY = 35;
     var cols = [15, 25, 75, 115, 150, 185, 250, PW-15];
@@ -3064,12 +3094,55 @@ function expPDF() {
 }
 
 /* ════════════════════════
-   EXCEL EXPORT (6 sheets)
+   EXCEL — أدوات التنسيق الاحترافي (xlsx-js-style)
 ════════════════════════ */
+function _xbd(){ var s={style:'thin',color:{rgb:'E2C7C7'}}; return {top:s,bottom:s,left:s,right:s}; }
+var _XHDR  = { font:{bold:true,sz:11,color:{rgb:'FFFFFF'},name:'Calibri'}, fill:{fgColor:{rgb:'C0392B'}}, alignment:{horizontal:'center',vertical:'center',wrapText:true}, border:_xbd() };
+var _XTTL  = { font:{bold:true,sz:16,color:{rgb:'FFFFFF'},name:'Calibri'}, fill:{fgColor:{rgb:'8E1B1B'}}, alignment:{horizontal:'center',vertical:'center'} };
+var _XSUB  = { font:{italic:true,sz:10,color:{rgb:'FFFFFF'},name:'Calibri'}, fill:{fgColor:{rgb:'B23B3B'}}, alignment:{horizontal:'center',vertical:'center'} };
+function _xCellStyle(center, zebra){
+  return { font:{sz:10,name:'Calibri',color:{rgb:'222222'}}, alignment:{horizontal:center?'center':'right',vertical:'center'}, border:_xbd(), fill:{fgColor:{rgb:zebra?'FBF1F1':'FFFFFF'}} };
+}
+/* تنسيق ورقة جدولية: صف الترويسة + تظليل متناوب + حدود */
+function _xStyleTable(ws, hdrRow, firstColRight){
+  if(!ws['!ref']) return;
+  var rng = XLSX.utils.decode_range(ws['!ref']);
+  for(var R=rng.s.r; R<=rng.e.r; R++){
+    for(var C=rng.s.c; C<=rng.e.c; C++){
+      var addr = XLSX.utils.encode_cell({r:R,c:C});
+      if(!ws[addr]) ws[addr] = {t:'s', v:''};
+      if(R < hdrRow) continue;
+      if(R === hdrRow){ ws[addr].s = _XHDR; }
+      else {
+        var center = !(firstColRight && C===0);
+        ws[addr].s = _xCellStyle(center, ((R-hdrRow)%2)===0);
+      }
+    }
+  }
+  ws['!rows'] = ws['!rows'] || [];
+  ws['!rows'][hdrRow] = {hpt:24};
+}
+/* لون خانة معيّنة حسب القيمة (للحالات) */
+function _xColorCell(ws, r, c, rgbText, rgbFill, bold){
+  var addr = XLSX.utils.encode_cell({r:r,c:c});
+  if(!ws[addr]) return;
+  var s = Object.assign({}, ws[addr].s || {});
+  s.font = Object.assign({}, s.font||{}, {color:{rgb:rgbText}, bold:!!bold});
+  if(rgbFill) s.fill = {fgColor:{rgb:rgbFill}};
+  ws[addr].s = s;
+}
+function _xStatusColors(label){
+  if(/حرج|تأخير/.test(label)) return ['FFFFFF','C0392B',true];
+  if(/أبطأ|بطيء/.test(label)) return ['7A4A00','FFE8C2',true];
+  if(/ممتاز|مكتمل/.test(label)) return ['145A2A','D6F0DD',true];
+  return null;
+}
+
 function expXLS() {
-  var list = mergeDupTrips(getF());
-  var from = document.getElementById('fFrom').value;
-  var to   = document.getElementById('fTo').value;
+  var _x = _expCtx();
+  var list = _x.list;
+  var from = _x.from;
+  var to   = _x.to;
   if(!list.length) { showToast('tw','⚠️','Excel','لا توجد بيانات للفترة المحددة',''); return; }
   var uname = (sess && sess.displayName) || (sess && sess.username) || '—';
   var wb = XLSX.utils.book_new();
@@ -3108,13 +3181,26 @@ function expXLS() {
   ST.forEach(function(s,i){ if(aD[i].avg>0){ var r=aD[i].avg/bD[i]; if(!worstSt||r>worstSt.r) worstSt={label:s.label,r:r}; if(!bestSt||r<bestSt.r) bestSt={label:s.label,r:r}; } });
   if(worstSt) sumRows.push(['أبطأ محطة (اختناق)', worstSt.label+' (+'+Math.round((worstSt.r-1)*100)+'%)']);
   if(bestSt)  sumRows.push(['أفضل محطة', bestSt.label]);
-  var ws1 = XLSX.utils.aoa_to_sheet(sumRows); ws1['!cols'] = [{wch:28},{wch:30}];
+  var ws1 = XLSX.utils.aoa_to_sheet(sumRows); ws1['!cols'] = [{wch:32},{wch:34}];
+  ws1['!merges'] = [{s:{r:0,c:0},e:{r:0,c:1}},{s:{r:1,c:0},e:{r:1,c:1}},{s:{r:2,c:0},e:{r:2,c:1}}];
+  ws1['!rows'] = [{hpt:30},{hpt:18},{hpt:18}];
+  if(ws1['A1']) ws1['A1'].s=_XTTL; if(ws1['A2']) ws1['A2'].s=_XSUB; if(ws1['A3']) ws1['A3'].s=_XSUB;
+  if(ws1['A5']) ws1['A5'].s=_XHDR; if(ws1['B5']) ws1['B5'].s=_XHDR;
+  for(var r1=5; r1<sumRows.length; r1++){
+    var zeb = ((r1-5)%2===0)?'FBF1F1':'FFFFFF';
+    var ka='A'+(r1+1), va='B'+(r1+1);
+    if(ws1[ka]) ws1[ka].s = { font:{bold:true,sz:10,color:{rgb:'7A1F1F'},name:'Calibri'}, alignment:{horizontal:'right',vertical:'center'}, border:_xbd(), fill:{fgColor:{rgb:zeb}} };
+    if(ws1[va]) ws1[va].s = { font:{bold:true,sz:11,color:{rgb:'222222'},name:'Calibri'}, alignment:{horizontal:'center',vertical:'center'}, border:_xbd(), fill:{fgColor:{rgb:zeb}} };
+  }
   XLSX.utils.book_append_sheet(wb, ws1, 'ملخص تنفيذي');
 
   var dRows = [['#','رقم السيارة','إجمالي التأخير (دقيقة)']];
   delayList.forEach(function(d,i){ dRows.push([i+1, d.num, d.delay]); });
   if(!delayList.length) dRows.push(['—','لا توجد سيارات متأخرة','']);
   var ws2 = XLSX.utils.aoa_to_sheet(dRows); ws2['!cols'] = [{wch:6},{wch:18},{wch:22}];
+  _xStyleTable(ws2, 0, false);
+  if(delayList.length){ for(var d2=1; d2<=delayList.length; d2++){ _xColorCell(ws2, d2, 2, 'C0392B', null, true); } }
+  ws2['!autofilter'] = { ref: ws2['!ref'] };
   XLSX.utils.book_append_sheet(wb, ws2, 'السيارات المتأخرة');
 
   var sRows = [['المحطة','EN','المعيار (دق)','المتوسط الفعلي (دق)','الفرق (دق)','الانحراف %','عدد القياسات','الحالة']];
@@ -3125,6 +3211,9 @@ function expXLS() {
     sRows.push([s.label, s.en, b, a||'—', diff==null?'—':diff, pct===''?'—':pct+'%', aD[i].cnt, status]);
   });
   var ws3 = XLSX.utils.aoa_to_sheet(sRows); ws3['!cols'] = [{wch:16},{wch:10},{wch:12},{wch:18},{wch:12},{wch:12},{wch:12},{wch:14}];
+  _xStyleTable(ws3, 0, true);
+  ST.forEach(function(s,i){ var c=_xStatusColors(sRows[i+1][7]); if(c) _xColorCell(ws3, i+1, 7, c[0], c[1], c[2]); });
+  ws3['!autofilter'] = { ref: ws3['!ref'] };
   XLSX.utils.book_append_sheet(wb, ws3, 'تحليل المحطات');
 
   var hdr=['التاريخ','رقم السيارة','مكتملة؟','مراحل','الإجمالي (دق)'];
@@ -3146,6 +3235,11 @@ function expXLS() {
   var cols4=[{wch:12},{wch:14},{wch:9},{wch:8},{wch:12}];
   for(var k=0;k<ST.length*3;k++) cols4.push({wch:11});
   cols4.push({wch:12}); ws4['!cols']=cols4;
+  _xStyleTable(ws4, 0, false);
+  var stCol = hdr.length-1;
+  for(var t4=1; t4<tRows.length; t4++){ var c4=_xStatusColors(tRows[t4][stCol]); if(c4) _xColorCell(ws4, t4, stCol, c4[0], c4[1], c4[2]); }
+  ws4['!autofilter'] = { ref: ws4['!ref'] };
+  ws4['!freeze'] = { xSplit:2, ySplit:1, topLeftCell:'C2', activePane:'bottomRight', state:'frozen' };
   XLSX.utils.book_append_sheet(wb, ws4, 'سجل الرحلات');
 
   var dayNames=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
@@ -3159,11 +3253,13 @@ function expXLS() {
     pvRows.push([s.label].concat(dayAvgs).concat([dayNames[mx]]));
   });
   var ws5=XLSX.utils.aoa_to_sheet(pvRows); ws5['!cols']=[{wch:16}].concat(dayNames.map(function(){return {wch:10};})).concat([{wch:12}]);
+  _xStyleTable(ws5, 0, true);
   XLSX.utils.book_append_sheet(wb, ws5, 'تحليل أيام الأسبوع');
 
   var bRows=[['مفتاح','EN','العربي','المعيار (دق)']];
   ST.forEach(function(s){ bRows.push([s.key, s.en, s.label, bench[s.key]||s.bench]); });
   var ws6=XLSX.utils.aoa_to_sheet(bRows); ws6['!cols']=[{wch:12},{wch:12},{wch:16},{wch:12}];
+  _xStyleTable(ws6, 0, false);
   XLSX.utils.book_append_sheet(wb, ws6, 'المعايير');
 
   XLSX.writeFile(wb,'Cairo3A_'+from+'_to_'+to+'.xlsx');
