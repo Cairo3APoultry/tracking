@@ -2731,74 +2731,76 @@ function saveTrip(trip) {
 ════════════════════════ */
 function makePDFChart(config, w, h) {
   return new Promise(function(resolve) {
+    var SC = 2; // دقة 2× (واضحة للطباعة وحجم أصغر بكثير من 3×)
     var cv = document.createElement('canvas');
-    cv.width = w * 3; cv.height = h * 3;
+    cv.width = w * SC; cv.height = h * SC;
     cv.style.cssText = 'position:fixed;left:-99999px;top:-99999px;width:'+w+'px;height:'+h+'px';
     document.body.appendChild(cv);
     try {
       var ctx2 = cv.getContext('2d');
-      ctx2.scale(3, 3);
+      ctx2.scale(SC, SC);
       config.options = config.options || {};
       config.options.animation = false;
-      config.options.devicePixelRatio = 3;
-      var customDataLabels = {
-        id: 'pdfDataLabels',
+      config.options.devicePixelRatio = SC;
+
+      // خلفية بيضاء (ضرورية لإخراج JPEG وللطباعة)
+      var whiteBg = { id:'whiteBg', beforeDraw:function(chart){ var c=chart.ctx; c.save(); c.fillStyle='#ffffff'; c.fillRect(0,0,chart.width,chart.height); c.restore(); } };
+
+      // أرقام احترافية: نص غامق بحدود بيضاء — واضح على أي خلفية وفي الطباعة أبيض/أسود
+      var labels = {
+        id:'pdfDataLabels',
         afterDatasetsDraw: function(chart) {
           var ctx = chart.ctx;
-          function pill(x, y, text, font, txtColor, bgColor) {
-            ctx.font = font;
-            var ww = ctx.measureText(text).width;
-            var padX = 6, hh = 20, r = 5;
-            var rx = x - ww/2 - padX, ry = y - hh/2, rw = ww + padX*2;
+          function halo(x, y, text, size, color, haloColor) {
             ctx.save();
-            ctx.globalAlpha = 0.95;
-            ctx.fillStyle = bgColor;
-            ctx.beginPath();
-            ctx.moveTo(rx+r, ry);
-            ctx.arcTo(rx+rw, ry, rx+rw, ry+hh, r);
-            ctx.arcTo(rx+rw, ry+hh, rx, ry+hh, r);
-            ctx.arcTo(rx, ry+hh, rx, ry, r);
-            ctx.arcTo(rx, ry, rx+rw, ry, r);
-            ctx.closePath();
-            ctx.fill();
-            ctx.globalAlpha = 1;
-            ctx.fillStyle = txtColor;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
+            ctx.font = 'bold ' + size + 'px Arial, sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.lineJoin = 'round'; ctx.miterLimit = 2;
+            ctx.lineWidth = Math.max(3, size * 0.34);
+            ctx.strokeStyle = haloColor || 'rgba(255,255,255,0.98)';
+            ctx.strokeText(text, x, y);
+            ctx.fillStyle = color || '#0f172a';
             ctx.fillText(text, x, y);
             ctx.restore();
           }
-          chart.data.datasets.forEach(function(dataset, i) {
+          chart.data.datasets.forEach(function(ds, i) {
             var meta = chart.getDatasetMeta(i);
             if (meta.hidden) return;
-            meta.data.forEach(function(element, index) {
-              var val = dataset.data[index];
-              var pos = element.tooltipPosition ? element.tooltipPosition() : {x: element.x, y: element.y};
-              if (dataset._pdfFmt) {
-                var spec = dataset._pdfFmt(val, index);
-                if (spec && spec.text) pill(pos.x, pos.y + (spec.dy||0), spec.text, spec.font||'bold 13px Arial, sans-serif', spec.txt||'#0f172a', spec.bg||'rgba(255,255,255,0.95)');
+            var type = ds.type || chart.config.type;
+            meta.data.forEach(function(el, idx) {
+              var val = ds.data[idx];
+              var pos = el.tooltipPosition ? el.tooltipPosition() : {x: el.x, y: el.y};
+              if (ds._pdfFmt) {
+                var sp = ds._pdfFmt(val, idx);
+                if (sp && sp.text) halo(pos.x, pos.y + (sp.dy||0), sp.text, 15, sp.txt||'#0f172a');
                 return;
               }
-              if (!val || val === 0) return;
-              if (chart.config.type === 'doughnut') {
-                var total = chart.data.datasets[0].data.reduce(function(a, b) { return a + b; }, 0);
-                var pct = total ? Math.round((val / total) * 100) : 0;
-                pill(pos.x, pos.y, val + ' (' + pct + '%)', 'bold 15px Arial, sans-serif', '#ffffff', 'rgba(15,23,42,0.80)');
-              } else if (chart.config.type === 'bar') {
-                pill(pos.x, pos.y - 14, val + 'm', 'bold 14px Arial, sans-serif', '#0f172a', 'rgba(255,255,255,0.95)');
-              } else if (chart.config.type === 'line') {
-                pill(pos.x, pos.y - 16, String(val), 'bold 14px Arial, sans-serif', '#ffffff', 'rgba(37,99,235,0.92)');
+              if (val == null || val === '' ) return;
+              if (type === 'doughnut') {
+                if (!val) return;
+                var total = ds.data.reduce(function(a,b){ return a + (b||0); }, 0);
+                var pct = total ? Math.round(val/total*100) : 0;
+                if (pct < 4) return; // تجاهل الشرائح الصغيرة جداً
+                var ang = (el.startAngle + el.endAngle)/2;
+                var r = (el.innerRadius + el.outerRadius)/2;
+                halo(el.x + Math.cos(ang)*r, el.y + Math.sin(ang)*r, pct + '%', 17, '#ffffff', 'rgba(15,23,42,0.6)');
+              } else if (type === 'bar') {
+                if (ds.label === 'Benchmark') return; // نُسمّي الفعلي فقط لتجنّب الازدحام
+                if (!val) return;
+                halo(pos.x, pos.y - 13, val + 'm', 16, '#0f172a');
+              } else if (type === 'line') {
+                halo(pos.x, pos.y - 14, String(val), 15, '#1e3a8a');
               }
             });
           });
         }
       };
       config.plugins = config.plugins || [];
-      config.plugins.push(customDataLabels);
+      config.plugins.push(whiteBg, labels);
       var ch = new Chart(ctx2, config);
       requestAnimationFrame(function(){
         requestAnimationFrame(function(){
-          try { var img = cv.toDataURL('image/png', 1.0); ch.destroy(); document.body.removeChild(cv); resolve(img); }
+          try { var img = cv.toDataURL('image/jpeg', 0.9); ch.destroy(); document.body.removeChild(cv); resolve(img); }
           catch(e2) { try{ch.destroy();}catch(_){} try{document.body.removeChild(cv);}catch(_){} resolve(null); }
         });
       });
@@ -2924,7 +2926,7 @@ function expPDF() {
   Promise.all([ makePDFChart(stBarCfg, 1200, 480), makePDFChart(lineCfg, 900, 420), makePDFChart(donutCfg, 600, 320), makePDFChart(paretoCfg, 1100, 460), fontPromise ]).then(function(charts) {
     var imgBar = charts[0], imgLine = charts[1], imgDonut = charts[2], imgPareto = charts[3], b64Font = charts[4];
     var jsPDF = window.jspdf.jsPDF;
-    var doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+    var doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4', compress:true });
     var PW = 297, PH = 210;
     var defaultFont = 'helvetica';
     if(b64Font) { doc.addFileToVFS('Amiri.ttf', b64Font); doc.addFont('Amiri.ttf', 'AmiriFont', 'normal'); doc.addFont('Amiri.ttf', 'AmiriFont', 'bold'); defaultFont = 'AmiriFont'; }
@@ -2978,7 +2980,7 @@ function expPDF() {
         theme: 'plain', styles: { font: defaultFont, fontSize: 10, cellPadding: 3 }, headStyles: { fillColor: [254, 226, 226], textColor: [185, 28, 28], fontStyle: 'bold' }, alternateRowStyles: { fillColor: [248, 250, 252] } });
     } else { doc.setFontSize(10); doc.setFont(defaultFont,'normal'); doc.setTextColor(16, 185, 129); doc.text("No significant delays detected in this period.", 15, 110); }
 
-    if(imgDonut) { doc.setFontSize(12); doc.setFont(defaultFont,'bold'); doc.setTextColor(15, 23, 42); doc.text('Status Distribution', 150, 100); doc.addImage(imgDonut,'PNG',145, 105, 135, 65); }
+    if(imgDonut) { doc.setFontSize(12); doc.setFont(defaultFont,'bold'); doc.setTextColor(15, 23, 42); doc.text('Status Distribution', 150, 100); doc.addImage(imgDonut,'JPEG',145, 105, 135, 65); }
     pFtr();
 
     doc.addPage(); pHdr('Performance Visualizations');
@@ -2987,14 +2989,14 @@ function expPDF() {
       doc.text('Station Performance: Actual Average vs. Benchmark (Minutes)', 15, 35);
       doc.setFillColor(255, 255, 255); doc.roundedRect(15, 40, 160, 150, 4, 4, 'F');
       doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.5); doc.roundedRect(15, 40, 160, 150, 4, 4, 'S');
-      doc.addImage(imgBar,'PNG', 18, 45, 154, 140);
+      doc.addImage(imgBar,'JPEG', 18, 45, 154, 140);
     }
     if(imgLine) {
       doc.setFontSize(13); doc.setFont(defaultFont,'bold'); doc.setTextColor(15, 23, 42);
       doc.text('Daily Volume Trend', 185, 35);
       doc.setFillColor(255, 255, 255); doc.roundedRect(185, 40, 97, 150, 4, 4, 'F');
       doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.5); doc.roundedRect(185, 40, 97, 150, 4, 4, 'S');
-      doc.addImage(imgLine,'PNG', 188, 55, 91, 120);
+      doc.addImage(imgLine,'JPEG', 188, 55, 91, 120);
     }
     pFtr();
 
@@ -3008,7 +3010,7 @@ function expPDF() {
       doc.text('Key insight: ' + pareto80 + ' vehicle(s) account for ~80% of the entire period\'s delay (' + totalWaste + ' min total).', 15, 49);
       doc.setFillColor(255,255,255); doc.roundedRect(15, 54, PW-30, 132, 4, 4, 'F');
       doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.5); doc.roundedRect(15, 54, PW-30, 132, 4, 4, 'S');
-      doc.addImage(imgPareto,'PNG', 20, 59, PW-40, 122);
+      doc.addImage(imgPareto,'JPEG', 20, 59, PW-40, 122);
       pFtr();
     }
 
