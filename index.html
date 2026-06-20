@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Cairo 3A">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#c0392b">
 <meta name="mobile-web-app-capable" content="yes">
@@ -746,22 +747,50 @@ tbody tr:last-child{border-bottom:none;}
 <div id="confirmBanner"><div class="cbanner ok" id="cBannerInner"><span id="cBannerTxt"></span></div></div>
 
 <!-- TV Control Room -->
-<div id="tvScreen" style="display:none;position:fixed;inset:0;z-index:9500;background:#0a0e14;color:#fff;overflow:hidden;padding:24px;font-family:var(--font)">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-    <div style="font-size:24px;font-weight:800">📺 Cairo 3A — غرفة التحكم</div>
-    <div style="display:flex;align-items:center;gap:16px">
-      <span id="tvClock" style="font-size:22px;font-weight:700;font-family:var(--mono);color:#f1c40f"></span>
-      <button onclick="closeTV()" style="background:#c0392b;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:14px;font-weight:700;cursor:pointer">✕ خروج</button>
+<div id="tvScreen" style="display:none">
+  <style>
+    #tvScreen{position:fixed;inset:0;z-index:9500;background:#0a0e14;color:#fff;overflow:hidden;padding:24px;font-family:var(--font)}
+    #tvScreen .tv-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:10px;flex-wrap:wrap}
+    #tvScreen .tv-title{font-size:24px;font-weight:800}
+    #tvKpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
+    #tvKpis .tv-kpi{background:#111827;border-radius:14px;padding:18px;text-align:center}
+    #tvKpis .tv-kpi-l{font-size:13px;color:#9ca3af}
+    #tvKpis .tv-kpi-v{font-size:40px;font-weight:800;line-height:1.1}
+    #tvMain{display:grid;grid-template-columns:1.3fr 1fr;gap:20px;height:calc(100vh - 200px)}
+    #tvMain .tv-panel{background:#111827;border-radius:16px;padding:18px;min-height:0}
+    #tvPanelL{overflow:auto}
+    #tvPanelR{overflow-y:auto}
+    #tvStations{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .tv-tip{display:none}
+    .tv-st:hover .tv-tip,.tv-st.tv-st-open .tv-tip{display:block}
+    .tv-st:hover{outline:2px solid #3b82f6}
+    @media(max-width:820px){
+      #tvScreen{padding:12px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+      #tvScreen .tv-title{font-size:16px}
+      #tvScreen .tv-head{margin-bottom:12px}
+      #tvKpis{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
+      #tvKpis .tv-kpi{padding:12px}
+      #tvKpis .tv-kpi-v{font-size:26px}
+      #tvMain{grid-template-columns:1fr;gap:12px;height:auto}
+      #tvPanelL,#tvPanelR{overflow:visible}
+      #tvStations{grid-template-columns:repeat(2,1fr)}
+      .tv-st.tv-st-open .tv-tip{position:static!important;transform:none!important;margin:10px 0 0 0!important;min-width:0!important;width:100%!important;max-height:none!important;box-shadow:none!important}
+    }
+  </style>
+  <div class="tv-head">
+    <div class="tv-title">📺 Cairo 3A — غرفة التحكم</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span id="tvClock" style="font-size:20px;font-weight:700;font-family:var(--mono);color:#f1c40f"></span>
+      <button onclick="closeTV()" style="background:#c0392b;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:14px;font-weight:700;cursor:pointer">✕ خروج</button>
     </div>
   </div>
-  <div id="tvKpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px"></div>
-  <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:20px;height:calc(100vh - 200px)">
-    <div style="background:#111827;border-radius:16px;padding:18px;overflow:hidden">
-      <div style="font-size:16px;font-weight:700;margin-bottom:12px;color:#9ca3af">⚡ المحطات الآن <span style="font-size:11px;color:#64748b;font-weight:400">(قف أو اضغط على المحطة لعرض السيارات)</span></div>
-      <style>.tv-tip{display:none}.tv-st:hover .tv-tip,.tv-st.tv-st-open .tv-tip{display:block}.tv-st:hover{outline:2px solid #3b82f6}</style>
-      <div id="tvStations" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px"></div>
+  <div id="tvKpis"></div>
+  <div id="tvMain">
+    <div class="tv-panel" id="tvPanelL">
+      <div style="font-size:16px;font-weight:700;margin-bottom:12px;color:#9ca3af">⚡ المحطات الآن <span style="font-size:11px;color:#64748b;font-weight:400">(اضغط على المحطة لعرض السيارات)</span></div>
+      <div id="tvStations"></div>
     </div>
-    <div style="background:#111827;border-radius:16px;padding:18px;overflow-y:auto">
+    <div class="tv-panel" id="tvPanelR">
       <div style="font-size:16px;font-weight:700;margin-bottom:12px;color:#ff6b5b">⚠️ السيارات المتأخرة</div>
       <div id="tvDelayed"></div>
     </div>
@@ -871,6 +900,35 @@ tbody tr:last-child{border-bottom:none;}
   </div>
 </div>
 
+<!-- iOS Install Modal -->
+<div class="modal-bg" id="iosM">
+  <div class="modal modal-sm">
+    <div class="modal-hdr"><h3>📲 تثبيت التطبيق على الآيفون</h3><button class="modal-close" onclick="document.getElementById('iosM').classList.remove('open')">✕</button></div>
+    <div class="modal-body">
+      <div id="iosSafariSteps">
+        <div style="font-size:13px;color:var(--t2);margin-bottom:16px;text-align:center;">خطوتين بس والتطبيق هيتحط على شاشتك بالأيقونة 👇</div>
+        <div style="display:flex;gap:12px;align-items:center;background:var(--bg3);padding:14px;border-radius:var(--r);margin-bottom:10px;">
+          <div style="width:36px;height:36px;flex:none;border-radius:10px;background:var(--rgrad);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;">1</div>
+          <div style="font-size:13px;line-height:1.6;">اضغط زر المشاركة
+            <svg width="18" height="18" viewBox="0 0 24 24" style="vertical-align:middle;margin:0 2px;" fill="none" stroke="#007aff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v13M8 6l4-4 4 4"/><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/></svg>
+            في شريط Safari تحت</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;background:var(--bg3);padding:14px;border-radius:var(--r);">
+          <div style="width:36px;height:36px;flex:none;border-radius:10px;background:var(--rgrad);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;">2</div>
+          <div style="font-size:13px;line-height:1.6;">اختر <b>«إضافة إلى الشاشة الرئيسية»</b><br><span style="color:var(--t2);font-size:11px;">Add to Home Screen ➕</span></div>
+        </div>
+      </div>
+      <div id="iosChromeWarn" style="display:none;">
+        <div style="font-size:13px;line-height:1.8;color:var(--orange);background:var(--ob);padding:14px;border-radius:var(--r);border:1px solid var(--ol);">
+          ⚠️ إنت فاتح من متصفح غير Safari. على الآيفون التثبيت بيشتغل من <b>Safari</b> فقط.<br>
+          انسخ الرابط وافتحه في Safari، وبعدين اضغط زر المشاركة ⬆️ ← «إضافة إلى الشاشة الرئيسية».
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn btr" onclick="document.getElementById('iosM').classList.remove('open')">تمام</button></div>
+  </div>
+</div>
+
 <!-- Warning Modal -->
 <div class="modal-bg" id="warnM">
   <div class="modal modal-sm">
@@ -960,6 +1018,8 @@ var tT = null, _warnCb = null;
 var pb1 = '', pb2 = '';
 var stChartInst = null, rLineInst = null, rBarInst = null, rDonutInst = null;
 var isSyncing = false;
+var _curPage = 'dash';      // الصفحة المفتوحة حالياً (لتحديثها لحظياً)
+var _silentRender = false;  // true أثناء التحديث التلقائي الصامت (يوقف أنيميشن الرسوم لمنع الوميض)
 
 /* ════════════════════════
    SUPABASE DATA LAYER
@@ -1247,7 +1307,7 @@ function _doInit() {
 
   startQRListener();
 
-  ['benchM','journeyM','warnM','addUserM','linkQRM','stagesMgrM','shiftM','dbDeleteM','dbSpaceM'].forEach(function(id) {
+  ['benchM','journeyM','warnM','addUserM','linkQRM','stagesMgrM','shiftM','dbDeleteM','dbSpaceM','iosM'].forEach(function(id) {
     var el = document.getElementById(id);
     if(el) el.addEventListener('click', function(e) { if(e.target === el) { if(id==='warnM') closeWarn(); else el.classList.remove('open'); } });
   });
@@ -1386,6 +1446,7 @@ function goPage(page, navEl) {
   if(navEl) navEl.classList.add('active');
   else { var ni = document.querySelector('.ni[data-page="'+page+'"]'); if(ni) ni.classList.add('active'); }
   document.getElementById('pb').scrollTo(0,0);
+  _curPage = page;
   if(page==='dash') renderDash();
   if(page==='reports') renderReports();
   if(page==='bench') buildBenchGrid();
@@ -1445,9 +1506,29 @@ function silentSync() {
       localStorage.setItem('c3aT', JSON.stringify(trips));
       qrd = d.qr || qrd;
       localStorage.setItem('c3aQ', JSON.stringify(qrd));
-      renderDash(); renderLiveStatus(); updDay();
+      _liveRefresh();
     })
     .catch(function(){ isSyncing = false; });
+}
+/* تحديث لحظي للصفحة المفتوحة حالياً بدون مقاطعة المستخدم */
+function _liveRefresh() {
+  updDay();
+  var ae = document.activeElement;
+  var typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'SELECT' || ae.tagName === 'TEXTAREA');
+  var anyModalOpen = !!document.querySelector('.modal-bg.open');
+  _silentRender = true;
+  try {
+    if(_curPage === 'reports') {
+      if(!typing) renderReports();           // التحليلات والتقارير + رسومها
+    } else if(_curPage === 'scan2') {
+      buildStationCards();                    // بطاقات المحطات (الأعداد اللحظية)
+    } else {
+      renderDash(); renderLiveStatus();       // لوحة التحكم + الحالة اللحظية
+    }
+    // لو نافذة رحلة سيارة مفتوحة، حدّث زمنها اللحظي
+    if(anyModalOpen && typeof _jOpenId !== 'undefined' && _jOpenId) { try { openJ(_jOpenId, true); } catch(e){} }
+  } catch(e){}
+  _silentRender = false;
 }
 setInterval(silentSync, 8000);
 
@@ -1478,11 +1559,32 @@ function clearF() {
 /* ════════════════════════
    DASHBOARD RENDER
 ════════════════════════ */
+/* ════════════════════════
+   الحساب اللحظي (Live)
+   _liveDur: زمن المحطة — لو السيارة خرجت = الزمن المسجّل، ولو لسه جوّه (اليوم) = الزمن المنقضي حتى الآن
+   _liveJourney: زمن الرحلة — المكتملة بإجماليها، والجارية بالمنقضي منذ أول دخول
+════════════════════════ */
+function _liveDur(t, s) {
+  var st = t && t.stations && t.stations[s.key];
+  if(!st) return null;
+  if(st.out) return (st.dur!=null) ? st.dur : null;
+  if(st.in && String(t.date||'').slice(0,10) === today()) return tdiff(st.in, nowT());
+  return (st.dur!=null) ? st.dur : null;
+}
+function _liveJourney(t) {
+  var allOut = ST.every(function(s){ var st=t.stations&&t.stations[s.key]; return st&&st.out; });
+  if(t.completed || allOut) return t.totalDur||0;
+  var fi = ST.map(function(s){ return t.stations&&t.stations[s.key]&&t.stations[s.key].in; }).filter(Boolean)[0];
+  if(fi && String(t.date||'').slice(0,10) === today()) return tdiff(fi, nowT());
+  return t.totalDur||0;
+}
+
 function renderDash() {
   var list  = getF();
   var comp  = list.filter(function(t){ return t.completed||ST.every(function(s){ return t.stations&&t.stations[s.key]&&t.stations[s.key].out; }); });
   var act   = list.filter(function(t){ return !t.completed&&Object.keys(t.stations||{}).length>0&&!ST.every(function(s){ return t.stations&&t.stations[s.key]&&t.stations[s.key].out; }); });
-  var avg   = comp.length ? Math.round(comp.reduce(function(a,t){ return a+(t.totalDur||0); },0)/comp.length) : 0;
+  var started = list.filter(function(t){ return Object.keys(t.stations||{}).length>0; });
+  var avg   = started.length ? Math.round(started.reduce(function(a,t){ return a+_liveJourney(t); },0)/started.length) : 0;
 
   var fCount = document.getElementById('fCount');
   if(fCount) fCount.textContent = list.length + ' سيارة';
@@ -1491,13 +1593,13 @@ function renderDash() {
     '<div class="kcard" data-clr="red"><div class="kico">🚗</div><div class="klbl">إجمالي المركبات</div><div class="kval">'+list.length+'</div><div class="ksub">في الفترة المحددة</div></div>'
    +'<div class="kcard" data-clr="green"><div class="kico">✅</div><div class="klbl">مكتملة</div><div class="kval" style="color:var(--green)">'+comp.length+'</div><div class="ksub">أتمّت جميع المراحل</div></div>'
    +'<div class="kcard" data-clr="blue"><div class="kico">⚙️</div><div class="klbl">جارية</div><div class="kval" style="color:var(--blue)">'+act.length+'</div><div class="ksub">لم تكمل بعد</div></div>'
-   +'<div class="kcard" data-clr="orange"><div class="kico">⏱️</div><div class="klbl">متوسط الوقت</div><div class="kval" style="color:var(--orange)">'+(avg||'—')+'</div><div class="ksub">دقيقة للرحلة الكاملة</div></div>';
+   +'<div class="kcard" data-clr="orange"><div class="kico">⏱️</div><div class="klbl">متوسط الوقت</div><div class="kval" style="color:var(--orange)">'+(avg||'—')+'</div><div class="ksub">دقيقة (محدّث لحظياً)</div></div>';
 
   var dashCnt = document.getElementById('dashCnt');
   if(dashCnt) dashCnt.textContent = list.length + ' سيارة';
 
   var aD = ST.map(function(s) {
-    var ds = list.map(function(t){ return t.stations&&t.stations[s.key]&&t.stations[s.key].dur; }).filter(function(v){ return v!=null&&v>0; });
+    var ds = list.map(function(t){ return _liveDur(t,s); }).filter(function(v){ return v!=null&&v>0; });
     return ds.length ? Math.round(ds.reduce(function(a,b){ return a+b; },0)/ds.length) : 0;
   });
   var bD = ST.map(function(s){ return bench[s.key]||s.bench; });
@@ -1533,8 +1635,9 @@ function renderDash() {
       var isC   = t.completed || done >= ST.length;
       var nst   = isC ? null : ST[done];
       var fi    = ST.map(function(s){ return t.stations&&t.stations[s.key]&&t.stations[s.key].in; }).filter(Boolean)[0]||'—';
-      var hasDelay = ST.some(function(s){ var st=t.stations&&t.stations[s.key]; return st&&st.dur&&st.dur>(bench[s.key]||s.bench)*1.2; });
-      return '<tr><td style="color:var(--t2);font-size:11px">'+(i+1)+'</td><td style="font-weight:700;font-family:var(--mono)">'+(t.num||'—')+'</td><td style="color:var(--t2)">'+(t.date||'—')+'</td><td style="font-family:var(--mono);font-size:11px">'+fi+'</td><td>'+(nst ? nst.icon+' '+nst.label : '✅ مكتملة')+'</td><td><span style="font-weight:700;color:'+(done>=ST.length?'var(--green)':'var(--blue)')+'">'+done+'</span><span style="color:var(--t2)">/'+ST.length+'</span></td><td><span style="font-family:var(--mono);font-weight:700">'+(t.totalDur||'—')+'</span>'+(t.totalDur?' <small style="color:var(--t2)">دق</small>':'')+'</td><td><span class="sbadge '+(isC?'ok':done>0?'act':'pnd')+'"><span class="sdot '+(isC?'sok':done>0?'sact':'spnd')+'"></span>'+(isC?'مكتملة':done>0?'جارية':'جديدة')+'</span>'+(hasDelay?'<span class="sbadge warn" style="margin-top:2px">⚠ تأخير</span>':'')+'</td><td><button class="btn btghost btn-xs" onclick="openJ(\''+t.id+'\')">🗺 رحلة</button></td></tr>';
+      var hasDelay = ST.some(function(s){ var d=_liveDur(t,s); return d!=null&&d>(bench[s.key]||s.bench)*1.2; });
+      var jt = _liveJourney(t);
+      return '<tr><td style="color:var(--t2);font-size:11px">'+(i+1)+'</td><td style="font-weight:700;font-family:var(--mono)">'+(t.num||'—')+'</td><td style="color:var(--t2)">'+(t.date||'—')+'</td><td style="font-family:var(--mono);font-size:11px">'+fi+'</td><td>'+(nst ? nst.icon+' '+nst.label : '✅ مكتملة')+'</td><td><span style="font-weight:700;color:'+(done>=ST.length?'var(--green)':'var(--blue)')+'">'+done+'</span><span style="color:var(--t2)">/'+ST.length+'</span></td><td><span style="font-family:var(--mono);font-weight:700">'+(jt||'—')+'</span>'+(jt?' <small style="color:var(--t2)">دق'+(isC?'':'⏳')+'</small>':'')+'</td><td><span class="sbadge '+(isC?'ok':done>0?'act':'pnd')+'"><span class="sdot '+(isC?'sok':done>0?'sact':'spnd')+'"></span>'+(isC?'مكتملة':done>0?'جارية':'جديدة')+'</span>'+(hasDelay?'<span class="sbadge warn" style="margin-top:2px">⚠ تأخير</span>':'')+'</td><td><button class="btn btghost btn-xs" onclick="openJ(\''+t.id+'\')">🗺 رحلة</button></td></tr>';
     }).join('');
   }
 }
@@ -1632,7 +1735,7 @@ function renderReports(list) {
   }
   var comp = list.filter(function(t){ return t.completed||ST.every(function(s){ return t.stations&&t.stations[s.key]&&t.stations[s.key].out; }); });
   var act  = list.filter(function(t){ return !t.completed&&Object.keys(t.stations||{}).length>0&&!ST.every(function(s){ return t.stations&&t.stations[s.key]&&t.stations[s.key].out; }); });
-  var aD   = ST.map(function(s){ var ds=list.map(function(t){ return t.stations&&t.stations[s.key]&&t.stations[s.key].dur; }).filter(function(v){ return v!=null&&v>0; }); return ds.length?Math.round(ds.reduce(function(a,b){ return a+b; },0)/ds.length):0; });
+  var aD   = ST.map(function(s){ var ds=list.map(function(t){ return _liveDur(t,s); }).filter(function(v){ return v!=null&&v>0; }); return ds.length?Math.round(ds.reduce(function(a,b){ return a+b; },0)/ds.length):0; });
   var bD   = ST.map(function(s){ return bench[s.key]||s.bench; });
 
   var dm = {}; list.forEach(function(t) { var d=String(t.date||'').slice(0,10); if(d) dm[d]=(dm[d]||0)+1; });
@@ -1643,7 +1746,7 @@ function renderReports(list) {
     type:'line',
     data:{ labels:days.map(function(d){ return d.slice(5); }),
       datasets:[{label:'مركبات / يوم',data:days.map(function(d){ return dm[d]||0; }),borderColor:'#c0392b',backgroundColor:'rgba(192,57,43,0.08)',fill:true,tension:0.4,pointRadius:4,pointBackgroundColor:'#c0392b',pointBorderColor:'#fff',pointBorderWidth:2,borderWidth:2.5}]},
-    options:{responsive:true,maintainAspectRatio:false,animation:{duration:400},plugins:{legend:{labels:{color:'#374151',font:{family:"'Cairo',sans-serif",size:11}}}},scales:{x:{ticks:{color:'#6b7280',font:{family:"'Cairo',sans-serif",size:10}},grid:{color:'rgba(0,0,0,0.04)'}},y:{ticks:{color:'#6b7280',font:{family:"'Cairo',sans-serif",size:11},stepSize:1},grid:{color:'rgba(0,0,0,0.06)'}}}}
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:_silentRender?0:400},plugins:{legend:{labels:{color:'#374151',font:{family:"'Cairo',sans-serif",size:11}}}},scales:{x:{ticks:{color:'#6b7280',font:{family:"'Cairo',sans-serif",size:10}},grid:{color:'rgba(0,0,0,0.04)'}},y:{ticks:{color:'#6b7280',font:{family:"'Cairo',sans-serif",size:11},stepSize:1},grid:{color:'rgba(0,0,0,0.06)'}}}}
   });
 
   if(rDonutInst) { rDonutInst.destroy(); rDonutInst = null; }
@@ -1652,7 +1755,7 @@ function renderReports(list) {
     type:'doughnut',
     data:{ labels:['مكتملة','جارية','جديدة'],
       datasets:[{data:[comp.length,act.length,Math.max(0,list.length-comp.length-act.length)],backgroundColor:['rgba(22,163,74,0.85)','rgba(29,78,216,0.85)','rgba(180,180,180,0.6)'],borderWidth:3,borderColor:'#fff',hoverOffset:6}]},
-    options:{responsive:true,maintainAspectRatio:false,animation:{duration:400},cutout:'60%',plugins:{legend:{position:'bottom',labels:{color:'#374151',font:{family:"'Cairo',sans-serif",size:11},padding:12}}}}
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:_silentRender?0:400},cutout:'60%',plugins:{legend:{position:'bottom',labels:{color:'#374151',font:{family:"'Cairo',sans-serif",size:11},padding:12}}}}
   });
 
   if(rBarInst) { rBarInst.destroy(); rBarInst=null; }
@@ -1664,7 +1767,7 @@ function renderReports(list) {
         {label:'معيار',data:bD,backgroundColor:'rgba(209,213,219,0.5)',borderColor:'rgba(156,163,175,0.7)',borderWidth:1.5,borderRadius:4},
         {label:'فعلي',data:aD,backgroundColor:aD.map(function(d,i){ return d>bD[i]*1.2?'rgba(192,57,43,0.85)':d>bD[i]?'rgba(217,119,6,0.85)':'rgba(22,163,74,0.85)'; }),borderRadius:4}
       ]},
-    options:{responsive:true,maintainAspectRatio:false,animation:{duration:400},plugins:{legend:{labels:{color:'#374151',font:{family:"'Cairo',sans-serif",size:12}}}},scales:{x:{ticks:{color:'#6b7280',font:{family:"'Cairo',sans-serif",size:11}},grid:{color:'rgba(0,0,0,0.04)'}},y:{ticks:{color:'#6b7280',font:{family:"'Cairo',sans-serif",size:11}},grid:{color:'rgba(0,0,0,0.06)'},title:{display:true,text:'دقيقة',color:'#9ca3af'}}}}
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:_silentRender?0:400},plugins:{legend:{labels:{color:'#374151',font:{family:"'Cairo',sans-serif",size:12}}}},scales:{x:{ticks:{color:'#6b7280',font:{family:"'Cairo',sans-serif",size:11}},grid:{color:'rgba(0,0,0,0.04)'}},y:{ticks:{color:'#6b7280',font:{family:"'Cairo',sans-serif",size:11}},grid:{color:'rgba(0,0,0,0.06)'},title:{display:true,text:'دقيقة',color:'#9ca3af'}}}}
   });
 
   var bd=document.getElementById('bottleneckDiv');
@@ -1700,7 +1803,7 @@ function renderAdvAnalytics(list) {
   var sla = document.getElementById('slaDiv');
   if(adv) {
     var rows = ST.map(function(s){
-      var durs = list.map(function(t){ return t.stations&&t.stations[s.key]&&t.stations[s.key].dur; }).filter(function(v){ return v!=null&&v>0; });
+      var durs = list.map(function(t){ return _liveDur(t,s); }).filter(function(v){ return v!=null&&v>0; });
       var b = bench[s.key]||s.bench;
       var avg = durs.length?Math.round(durs.reduce(function(a,c){return a+c;},0)/durs.length):0;
       return { s:s, b:b, n:durs.length, avg:avg, med:_pctile(durs,50), p90:_pctile(durs,90) };
@@ -1742,7 +1845,7 @@ function renderAdvAnalytics(list) {
     var slaPct = comp.length ? Math.round(onTime/comp.length*100) : 0;
     var col = slaPct>=80?'var(--green)':slaPct>=60?'var(--orange)':'var(--red)';
     var totalStages=0, onTimeStages=0;
-    list.forEach(function(t){ ST.forEach(function(s){ var st=t.stations&&t.stations[s.key]; if(st&&st.dur!=null){ totalStages++; if(st.dur<=(bench[s.key]||s.bench)) onTimeStages++; } }); });
+    list.forEach(function(t){ ST.forEach(function(s){ var d=_liveDur(t,s); if(d!=null){ totalStages++; if(d<=(bench[s.key]||s.bench)) onTimeStages++; } }); });
     var stagePct = totalStages?Math.round(onTimeStages/totalStages*100):0;
     var col2 = stagePct>=80?'var(--green)':stagePct>=60?'var(--orange)':'var(--red)';
     sla.innerHTML =
@@ -1799,15 +1902,15 @@ function renderAnomalies(list) {
   var el = document.getElementById('anomalyDiv'); if(!el) return;
   var p90 = {};
   ST.forEach(function(s){
-    var durs = list.map(function(t){ return t.stations&&t.stations[s.key]&&t.stations[s.key].dur; }).filter(function(v){ return v!=null&&v>0; });
+    var durs = list.map(function(t){ return _liveDur(t,s); }).filter(function(v){ return v!=null&&v>0; });
     p90[s.key] = _pctile(durs, 90);
   });
   var rows = [];
   list.forEach(function(t){
     ST.forEach(function(s){
-      var st = t.stations && t.stations[s.key];
-      if(st && st.dur!=null && p90[s.key]>0 && st.dur > p90[s.key]){
-        rows.push({ num:t.num, date:t.date, s:s, dur:st.dur, p90:p90[s.key] });
+      var d = _liveDur(t, s);
+      if(d!=null && p90[s.key]>0 && d > p90[s.key]){
+        rows.push({ num:t.num, date:t.date, s:s, dur:d, p90:p90[s.key] });
       }
     });
   });
@@ -1828,7 +1931,7 @@ function _exceptionRows(list) {
     var done = ST.filter(function(s){ return t.stations&&t.stations[s.key]&&t.stations[s.key].out; }).length;
     var isC = done >= ST.length;
     var lateStages = [];
-    ST.forEach(function(s){ var st=t.stations&&t.stations[s.key]; var b=bench[s.key]||s.bench; if(st&&st.dur!=null&&st.dur>b*1.2) lateStages.push(s.label+' (+'+(st.dur-b)+')'); });
+    ST.forEach(function(s){ var d=_liveDur(t,s); var b=bench[s.key]||s.bench; if(d!=null&&d>b*1.2) lateStages.push(s.label+' (+'+(d-b)+')'); });
     if(!isC || lateStages.length){ out.push({ num:t.num, date:t.date, done:done, isC:isC, late:lateStages }); }
   });
   return out;
@@ -1848,7 +1951,8 @@ function renderExceptions(list) {
 function _periodStats(from, to) {
   var list = mergeDupTrips(trips.filter(function(t){ var d=String(t.date||'').slice(0,10); return d>=from && d<=to; }));
   var comp = list.filter(function(t){ return ST.every(function(s){ return t.stations&&t.stations[s.key]&&t.stations[s.key].out; }); });
-  var avg = comp.length?Math.round(comp.reduce(function(a,t){return a+(t.totalDur||0);},0)/comp.length):0;
+  var started = list.filter(function(t){ return Object.keys(t.stations||{}).length>0; });
+  var avg = started.length?Math.round(started.reduce(function(a,t){return a+_liveJourney(t);},0)/started.length):0;
   var totalBench = ST.reduce(function(a,s){ return a+(bench[s.key]||s.bench); },0);
   var onTime = comp.filter(function(t){ return (t.totalDur||0)<=totalBench; }).length;
   var sla = comp.length?Math.round(onTime/comp.length*100):0;
@@ -1942,7 +2046,7 @@ function renderTV() {
     {l:'مكتملة', v:comp.length, c:'#2ecc71'},
     {l:'جارية الآن', v:act.length, c:'#3b82f6'},
     {l:'متوسط الوقت (لحظي)', v:(avgLive||0)+' د', c:'#f1c40f'}
-  ].map(function(k){ return '<div style="background:#111827;border-radius:14px;padding:18px;text-align:center"><div style="font-size:13px;color:#9ca3af">'+k.l+'</div><div style="font-size:40px;font-weight:800;color:'+k.c+'">'+k.v+'</div></div>'; }).join('');
+  ].map(function(k){ return '<div class="tv-kpi"><div class="tv-kpi-l">'+k.l+'</div><div class="tv-kpi-v" style="color:'+k.c+'">'+k.v+'</div></div>'; }).join('');
 
   var stEl = document.getElementById('tvStations');
   if(stEl) stEl.innerHTML = ST.map(function(s){
@@ -1980,9 +2084,11 @@ function renderTV() {
 /* ════════════════════════
    JOURNEY MODAL
 ════════════════════════ */
-function openJ(tid) {
+var _jOpenId = null;
+function openJ(tid, silent) {
   var t = trips.find(function(x){ return x.id===tid; });
   if(!t) return;
+  _jOpenId = tid;
   var pipe = document.getElementById('jPipe');
   if(pipe) {
     pipe.innerHTML = '';
@@ -2009,20 +2115,22 @@ function openJ(tid) {
      +'<div class="jd-card"><div class="jdc-hdr">⏰ وقت البدء</div><div class="jdc-val">'+firstIn+'</div></div>'
      +'<div class="jd-card"><div class="jdc-hdr">🏁 وقت الانتهاء</div><div class="jdc-val">'+lastOut+'</div></div>'
      +'<div class="jd-card"><div class="jdc-hdr">✅ مراحل مكتملة</div><div class="jdc-val">'+stDone.length+' / '+ST.length+'</div></div>'
-     +'<div class="jd-card"><div class="jdc-hdr">⏱️ إجمالي الوقت</div><div class="jdc-val">'+(t.totalDur||'—')+' '+(t.totalDur?'دق':'')+'</div></div>';
+     +'<div class="jd-card"><div class="jdc-hdr">⏱️ إجمالي الوقت</div><div class="jdc-val">'+(_liveJourney(t)||'—')+' '+(_liveJourney(t)?'دق':'')+'</div></div>';
     var tlHtml = ST.map(function(s) {
       var st = (t.stations && t.stations[s.key]);
       if(!(st && st.in)) return '';
       var b = bench[s.key] || s.bench;
-      var diff = st.dur != null ? st.dur - b : null;
+      var d = _liveDur(t, s);
+      var live = !!(st.in && !st.out);
+      var diff = d != null ? d - b : null;
       var durClass = diff == null ? '' : diff > b*0.2 ? 'err' : diff > 0 ? 'warn' : 'ok';
-      return '<div class="jd-card" style="grid-column:1/-1;"><div style="display:flex;align-items:center;gap:10px;"><span style="font-size:22px">'+s.icon+'</span><div style="flex:1;"><div style="font-weight:700;font-size:13px">'+s.label+'</div><div style="font-size:11px;color:var(--t2);font-family:var(--mono)">دخول: '+(st.in||'—')+' | خروج: '+(st.out||'جارٍ')+'</div>'+((st.byIn||st.byOut)?('<div style="font-size:10px;color:var(--grayL)">👤 '+(st.byIn||'?')+((st.byOut&&st.byOut!==st.byIn)?' ← '+st.byOut:'')+'</div>'):'')+'</div>'+(st.dur!=null?('<span class="tl-dur '+durClass+'">'+st.dur+' دق (معيار: '+b+')</span>'):'')+'</div></div>';
+      return '<div class="jd-card" style="grid-column:1/-1;"><div style="display:flex;align-items:center;gap:10px;"><span style="font-size:22px">'+s.icon+'</span><div style="flex:1;"><div style="font-weight:700;font-size:13px">'+s.label+'</div><div style="font-size:11px;color:var(--t2);font-family:var(--mono)">دخول: '+(st.in||'—')+' | خروج: '+(st.out||'جارٍ')+'</div>'+((st.byIn||st.byOut)?('<div style="font-size:10px;color:var(--grayL)">👤 '+(st.byIn||'?')+((st.byOut&&st.byOut!==st.byIn)?' ← '+st.byOut:'')+'</div>'):'')+'</div>'+(d!=null?('<span class="tl-dur '+durClass+'">'+d+' دق'+(live?' ⏳':'')+' (معيار: '+b+')</span>'):'')+'</div></div>';
     }).filter(Boolean).join('');
     if(tlHtml) detail.innerHTML += tlHtml;
   }
   document.getElementById('journeyM').classList.add('open');
 }
-function closeJourney() { document.getElementById('journeyM').classList.remove('open'); }
+function closeJourney() { _jOpenId = null; document.getElementById('journeyM').classList.remove('open'); }
 
 /* ════════════════════════
    SCAN — ENTRY
@@ -2703,9 +2811,10 @@ function expPDF() {
   var uname = (sess && sess.displayName) || (sess && sess.username) || 'System';
   var comp = list.filter(function(t){ return t.completed||ST.every(function(s){ return t.stations&&t.stations[s.key]&&t.stations[s.key].out; }); });
   var act = list.filter(function(t){ return !t.completed&&Object.keys(t.stations||{}).length>0&&!ST.every(function(s){ return t.stations&&t.stations[s.key]&&t.stations[s.key].out; }); });
-  var avg = comp.length ? Math.round(comp.reduce(function(a,t){ return a+(t.totalDur||0); },0)/comp.length) : 0;
+  var started = list.filter(function(t){ return Object.keys(t.stations||{}).length>0; });
+  var avg = started.length ? Math.round(started.reduce(function(a,t){ return a+_liveJourney(t); },0)/started.length) : 0;
   var nowStr = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
-  var aD = ST.map(function(s){ var ds=list.map(function(t){ return t.stations&&t.stations[s.key]&&t.stations[s.key].dur; }).filter(function(v){ return v!=null&&v>0; }); return ds.length?Math.round(ds.reduce(function(a,b){ return a+b; },0)/ds.length):0; });
+  var aD = ST.map(function(s){ var ds=list.map(function(t){ return _liveDur(t,s); }).filter(function(v){ return v!=null&&v>0; }); return ds.length?Math.round(ds.reduce(function(a,b){ return a+b; },0)/ds.length):0; });
   var bD = ST.map(function(s){ return bench[s.key]||s.bench; });
 
   var hoursMap = {};
@@ -2714,7 +2823,7 @@ function expPDF() {
   var peakHourText = peakHour !== 'N/A' ? (peakHour + ":00 - " + (parseInt(peakHour)+1).toString().padStart(2,'0') + ":00") : "N/A";
 
   var delayList = [];
-  list.forEach(function(t){ var totalDelay = 0; ST.forEach(function(s, i) { var st = t.stations && t.stations[s.key]; if(st && st.dur != null && st.dur > bD[i]) { totalDelay += (st.dur - bD[i]); } }); if(totalDelay > 0) delayList.push({ num: t.num, delay: totalDelay }); });
+  list.forEach(function(t){ var totalDelay = 0; ST.forEach(function(s, i) { var d = _liveDur(t,s); if(d != null && d > bD[i]) { totalDelay += (d - bD[i]); } }); if(totalDelay > 0) delayList.push({ num: t.num, delay: totalDelay }); });
   delayList.sort(function(a,b){ return b.delay - a.delay; });
   var top5Delays = delayList.slice(0, 5);
 
@@ -2729,7 +2838,7 @@ function expPDF() {
   /* ── تركّز التأخير على المحطات ── */
   var stWaste = ST.map(function(s,i){
     var w = 0;
-    list.forEach(function(t){ var st=t.stations&&t.stations[s.key]; if(st&&st.dur!=null&&st.dur>bD[i]) w += (st.dur-bD[i]); });
+    list.forEach(function(t){ var d=_liveDur(t,s); if(d!=null&&d>bD[i]) w += (d-bD[i]); });
     return { en:s.en, waste:w };
   });
   var totalStWaste = stWaste.reduce(function(a,s){ return a+s.waste; }, 0);
@@ -2933,10 +3042,11 @@ function expPDF() {
         var st = (t.stations && t.stations[s.key]);
         if(!st || (!st.in && !st.out)) return;
         var b = bD[i];
-        var diff = (st && st.dur)!=null ? st.dur-b : null;
+        var d = _liveDur(t, s);
+        var diff = d != null ? d - b : null;
         var diffStr = diff!=null ? (diff>0?'+'+diff+'m':diff+'m') : '—';
-        var status = !st.out ? 'PENDING' : diff>b*0.2 ? 'DELAYED' : diff>0 ? 'SLOW' : 'ON TIME';
-        dRows.push([String(t.num||'—'), (i+1)+'. '+s.en, st.in||'—', st.out||'—', st.dur!=null?st.dur+'m':'—', b+'m', diffStr, status]);
+        var status = !st.out ? ((diff!=null&&diff>0) ? 'IN-PROGRESS!' : 'IN PROGRESS') : diff>b*0.2 ? 'DELAYED' : diff>0 ? 'SLOW' : 'ON TIME';
+        dRows.push([String(t.num||'—'), (i+1)+'. '+s.en, st.in||'—', st.out||'—', d!=null?d+'m':'—', b+'m', diffStr, status]);
       });
     });
     doc.autoTable(Object.assign({}, tableStyles, {
@@ -2966,8 +3076,9 @@ function expXLS() {
 
   var comp = list.filter(function(t){ return t.completed||ST.every(function(s){ return t.stations&&t.stations[s.key]&&t.stations[s.key].out; }); });
   var act  = list.filter(function(t){ return !t.completed&&Object.keys(t.stations||{}).length>0&&!ST.every(function(s){ return t.stations&&t.stations[s.key]&&t.stations[s.key].out; }); });
-  var avg  = comp.length ? Math.round(comp.reduce(function(a,t){ return a+(t.totalDur||0); },0)/comp.length) : 0;
-  var aD = ST.map(function(s){ var ds=list.map(function(t){ return t.stations&&t.stations[s.key]&&t.stations[s.key].dur; }).filter(function(v){ return v!=null&&v>0; }); return {avg: ds.length?Math.round(ds.reduce(function(a,b){return a+b;},0)/ds.length):0, cnt: ds.length}; });
+  var started = list.filter(function(t){ return Object.keys(t.stations||{}).length>0; });
+  var avg  = started.length ? Math.round(started.reduce(function(a,t){ return a+_liveJourney(t); },0)/started.length) : 0;
+  var aD = ST.map(function(s){ var ds=list.map(function(t){ return _liveDur(t,s); }).filter(function(v){ return v!=null&&v>0; }); return {avg: ds.length?Math.round(ds.reduce(function(a,b){return a+b;},0)/ds.length):0, cnt: ds.length}; });
   var bD = ST.map(function(s){ return bench[s.key]||s.bench; });
 
   var hoursMap = {};
@@ -2976,7 +3087,7 @@ function expXLS() {
   var peakTxt = peakHour ? (peakHour+':00 - '+(parseInt(peakHour)+1)+':00') : '—';
 
   var delayList = [];
-  list.forEach(function(t){ var d=0; ST.forEach(function(s,i){ var st=t.stations&&t.stations[s.key]; if(st&&st.dur!=null&&st.dur>bD[i]) d+=(st.dur-bD[i]); }); if(d>0) delayList.push({num:t.num, delay:d}); });
+  list.forEach(function(t){ var d=0; ST.forEach(function(s,i){ var dd=_liveDur(t,s); if(dd!=null&&dd>bD[i]) d+=(dd-bD[i]); }); if(d>0) delayList.push({num:t.num, delay:d}); });
   delayList.sort(function(a,b){ return b.delay-a.delay; });
 
   var sumRows = [
@@ -3024,10 +3135,10 @@ function expXLS() {
   var tRows=[hdr];
   list.forEach(function(t){
     var done=Object.keys(t.stations||{}).length;
-    var row=[t.date, t.num||'—', done>=ST.length?'نعم':'لا', done+'/'+ST.length, t.totalDur||''];
+    var row=[t.date, t.num||'—', done>=ST.length?'نعم':'لا', done+'/'+ST.length, _liveJourney(t)||''];
     ST.forEach(function(s){ row.push((t.stations&&t.stations[s.key]&&t.stations[s.key].in)||''); });
     ST.forEach(function(s){ row.push((t.stations&&t.stations[s.key]&&t.stations[s.key].out)||''); });
-    ST.forEach(function(s){ row.push((t.stations&&t.stations[s.key]&&t.stations[s.key].dur)||''); });
+    ST.forEach(function(s){ var d=_liveDur(t,s); row.push(d!=null?d:''); });
     row.push(done>=ST.length?'مكتملة':done>0?'جارية':'جديدة');
     tRows.push(row);
   });
@@ -3041,7 +3152,7 @@ function expXLS() {
   var pvRows=[['المحطة'].concat(dayNames).concat(['أسوأ يوم'])];
   ST.forEach(function(s){
     var dayAvgs=[0,1,2,3,4,5,6].map(function(d){
-      var ds=list.filter(function(t){ return new Date(t.date).getDay()===d && t.stations && t.stations[s.key] && t.stations[s.key].dur; }).map(function(t){ return t.stations[s.key].dur; });
+      var ds=list.map(function(t){ return (new Date(t.date).getDay()===d) ? _liveDur(t,s) : null; }).filter(function(v){ return v!=null&&v>0; });
       return ds.length?Math.round(ds.reduce(function(a,b){return a+b;},0)/ds.length):'—';
     });
     var mx=0; dayAvgs.forEach(function(v,idx){ if(typeof v==='number'&&v>(typeof dayAvgs[mx]==='number'?dayAvgs[mx]:0)) mx=idx; });
@@ -3365,7 +3476,8 @@ if('serviceWorker' in navigator){ try { navigator.serviceWorker.register('sw.js'
 
 var _deferredPrompt = null;
 function _isStandalone(){ return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
-function _isiOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+function _isiOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1); }
+function _isiOSChrome(){ return /crios|fxios|edgios/i.test(navigator.userAgent); }
 
 window.addEventListener('beforeinstallprompt', function(e){
   e.preventDefault();
@@ -3378,6 +3490,13 @@ window.addEventListener('appinstalled', function(){
   try { showToast('tg','✅','تثبيت','تم تثبيت التطبيق على جهازك',''); } catch(e){}
 });
 
+function _openIosInstall(){
+  var safari = document.getElementById('iosSafariSteps');
+  var chrome = document.getElementById('iosChromeWarn');
+  if(_isiOSChrome()){ if(safari) safari.style.display='none'; if(chrome) chrome.style.display='block'; }
+  else { if(safari) safari.style.display='block'; if(chrome) chrome.style.display='none'; }
+  document.getElementById('iosM').classList.add('open');
+}
 function installApp(){
   if(_isStandalone()){ showToast('te','ℹ️','تثبيت','التطبيق مثبّت بالفعل على جهازك',''); return; }
   if(_deferredPrompt){
@@ -3388,15 +3507,20 @@ function installApp(){
     });
     return;
   }
-  if(_isiOS()){
-    openWarn('📲','تثبيت على الآيفون','افتح الموقع في Safari، اضغط زر المشاركة ⬆️ في الأسفل، ثم اختر «إضافة إلى الشاشة الرئيسية» (Add to Home Screen).', null);
-  } else {
-    openWarn('📲','تثبيت التطبيق','من قائمة المتصفح (⋮) فوق، اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية». يُفضّل فتح الموقع في Chrome.', null);
-  }
+  if(_isiOS()){ _openIosInstall(); return; }
+  openWarn('📲','تثبيت التطبيق','من قائمة المتصفح (⋮) فوق، اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية». يُفضّل فتح الموقع في Chrome.', null);
 }
-// الآيفون لا يطلق beforeinstallprompt — نُظهر الزر له يدوياً لعرض التعليمات
+// الآيفون لا يطلق beforeinstallprompt — نُظهر الزر + بانر مرة واحدة
 window.addEventListener('load', function(){
-  if(!_isStandalone() && (_isiOS())){ var b=document.getElementById('installBtn'); if(b) b.style.display='flex'; }
+  if(_isStandalone()) return;
+  if(_isiOS()){
+    var b=document.getElementById('installBtn'); if(b) b.style.display='flex';
+    try {
+      if(!localStorage.getItem('c3aIosHint')){
+        setTimeout(function(){ _openIosInstall(); localStorage.setItem('c3aIosHint','1'); }, 1500);
+      }
+    } catch(e){}
+  }
 });
 
 </script>
