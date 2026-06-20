@@ -2868,236 +2868,414 @@ function expPDF() {
   var totalStWaste = stWaste.reduce(function(a,s){ return a+s.waste; }, 0);
   stWaste.sort(function(a,b){ return b.waste-a.waste; });
 
-  var barColors = aD.map(function(d,i){ return d>bD[i]*1.2?'rgba(220, 38, 38, 0.85)':d>bD[i]?'rgba(245, 158, 11, 0.85)':'rgba(37, 99, 235, 0.85)'; });
-  var CHART_FONT = { family:'Arial, sans-serif' };
-  var TICK = '#475569'; var GRID = 'rgba(226, 232, 240, 0.8)';
+  /* ════════ EXECUTIVE PALETTE & DERIVED INTELLIGENCE ════════ */
+  var N = list.length;
+  var pending = Math.max(0, N - comp.length - act.length);
+  var complRate = N ? Math.round(comp.length/N*100) : 0;
+  var totalBench = ST.reduce(function(a,s){ return a+(bench[s.key]||s.bench); }, 0);
+  var avgCycle = avg;
 
-  var stBarCfg = {
-    type:'bar',
-    data:{ labels: ST.map(function(s){ return s.en; }),
+  function _sev(ratio){ return ratio>=2?'Critical':ratio>=1.4?'High':ratio>=1.05?'Elevated':'Optimal'; }
+  var stInfo = ST.map(function(s,i){
+    var a=aD[i], b=bD[i], ratio=b?a/b:0;
+    var vol = list.map(function(t){ return _liveDur(t,s); }).filter(function(v){ return v!=null&&v>0; }).length;
+    return { en:s.en, ar:s.label, bench:b, actual:a, varAbs:a-b, varPct: b?Math.round((a-b)/b*100):0,
+             sev:_sev(ratio), vol:vol, priority: Math.round(Math.max(0,(b?(a-b)/b*100:0)) * (0.4 + 0.6*(vol/(N||1)))) };
+  });
+  var stByPri = stInfo.slice().sort(function(a,b){ return b.priority-a.priority; });
+  var mainBn = stByPri[0] || {en:'—',varPct:0,sev:'Optimal',bench:0,actual:0,priority:0};
+  function _rootCause(si){ return si.sev==='Critical'?'Severe congestion; vehicles dwell far beyond standard.':si.sev==='High'?'Recurring queueing and resource constraint.':si.sev==='Elevated'?'Minor variance under peak load.':'Operating within target.'; }
+  function _recommend(si){ return si.sev==='Critical'?'Immediate capacity review & dedicated supervision.':si.sev==='High'?'Add resources at peak; investigate workflow.':si.sev==='Elevated'?'Monitor and optimize peak window.':'Maintain current performance.'; }
+
+  var vehScores = started.map(function(t){
+    var del=0; ST.forEach(function(s,i){ var d=_liveDur(t,s); if(d!=null&&d>bD[i]) del+=(d-bD[i]); });
+    var score=Math.max(0, 100 - Math.min(100, totalBench?Math.round(del/totalBench*100):0));
+    var cat=score>=90?'High Performance':score>=70?'Normal':score>=40?'At Risk':'Critical Delay';
+    return { num:t.num, score:score, delay:del, cat:cat };
+  });
+  var catCount={'High Performance':0,'Normal':0,'At Risk':0,'Critical Delay':0};
+  vehScores.forEach(function(v){ catCount[v.cat]++; });
+  var criticalVeh = vehScores.filter(function(v){ return v.cat==='Critical Delay'||v.cat==='At Risk'; }).sort(function(a,b){ return a.score-b.score; }).slice(0,12);
+
+  var expectedStages=N*ST.length, inCount=0, outCount=0, openCount=0;
+  list.forEach(function(t){ ST.forEach(function(s){ var st=t.stations&&t.stations[s.key]; if(st){ if(st.in)inCount++; if(st.out)outCount++; if(st.in&&!st.out)openCount++; } }); });
+  var completeness=expectedStages?Math.round(outCount/expectedStages*100):0;
+  var coverage=expectedStages?Math.round(inCount/expectedStages*100):0;
+  var integrity=inCount?Math.round(outCount/inCount*100):0;
+  var noData=list.filter(function(t){ return !Object.keys(t.stations||{}).length; }).length;
+  var health=Math.round(completeness*0.4 + complRate*0.35 + integrity*0.25);
+  var confidence=health>=80?'High':health>=60?'Moderate':'Limited';
+
+  var risks=[
+    {area:'Station Bottleneck', level: mainBn.sev==='Critical'?'Critical':mainBn.sev==='High'?'High':mainBn.varPct>0?'Medium':'Low', impact: mainBn.en+' runs '+(mainBn.varPct>0?'+':'')+mainBn.varPct+'% vs standard'},
+    {area:'Delay Concentration', level: (pareto80<=3&&totalWaste>0)?'High':totalWaste>0?'Medium':'Low', impact: pareto80+' vehicle(s) drive ~80% of total delay'},
+    {area:'Throughput / Completion', level: complRate<50?'Critical':complRate<75?'High':complRate<90?'Medium':'Low', impact: complRate+'% completed the full cycle'},
+    {area:'Data Integrity', level: openCount>Math.max(1,started.length)*0.5?'High':openCount>0?'Medium':'Low', impact: openCount+' open record(s) without checkout'},
+    {area:'Capacity / Peak Load', level:'Medium', impact:'Demand peaks at '+peakHourText}
+  ];
+
+  var insights=[
+    ['Primary Bottleneck', mainBn.sev==='Optimal'?'No material bottleneck detected; all stations within target.':(mainBn.en+' is operating '+(mainBn.varPct>0?'+':'')+mainBn.varPct+'% versus the '+mainBn.bench+'-min standard ('+mainBn.sev+' severity).')],
+    ['Throughput Efficiency', complRate+'% completion at an average cycle of '+avgCycle+' min against a '+totalBench+'-min benchmark — '+(avgCycle<=totalBench?'within target.':'above target.')],
+    ['Delay Concentration', totalWaste>0?(pareto80+' vehicle(s) account for ~80% of total delay ('+totalWaste+' min) — a focused intervention opportunity.'):'Delay is negligible across the fleet.'],
+    ['Operational Concern', (catCount['Critical Delay']+catCount['At Risk'])+' vehicle(s) flagged At-Risk or Critical and warrant management review.'],
+    ['Capacity Observation', 'Inflow peaks at '+peakHourText+'; aligning staffing to this window protects throughput.']
+  ];
+
+  /* ════════ CHART CONFIGS (executive palette) ════════ */
+  var CF={family:'Arial, sans-serif'}, TICK='#475569', GRID='rgba(226,232,240,0.85)';
+  var C_BLUE='rgba(30,64,175,0.90)', C_RED='rgba(220,38,38,0.85)', C_AMBER='rgba(245,158,11,0.90)', C_INK='rgba(15,23,42,0.90)';
+  var utilColors=aD.map(function(d,i){ return d>bD[i]*1.4?C_RED:d>bD[i]*1.05?C_AMBER:C_BLUE; });
+
+  var dm={}; list.forEach(function(t){ var d=String(t.date||'').slice(0,10); if(d) dm[d]=(dm[d]||0)+1; });
+  var days=Object.keys(dm).sort().slice(-14);
+  var cycleByDay=days.map(function(d){ var ts=list.filter(function(t){return String(t.date||'').slice(0,10)===d;}).map(_liveJourney).filter(function(v){return v>0;}); return ts.length?Math.round(ts.reduce(function(a,b){return a+b;},0)/ts.length):0; });
+
+  var throughputCfg={ type:'line',
+    data:{ labels:days.map(function(d){return d.slice(5);}),
+      datasets:[{label:'Vehicles / Day',data:days.map(function(d){return dm[d]||0;}),borderColor:'#1e40af',backgroundColor:'rgba(30,64,175,0.08)',fill:true,tension:0.35,pointRadius:5,pointBackgroundColor:'#fff',pointBorderColor:'#1e40af',pointBorderWidth:2.5,borderWidth:3}]},
+    options:{animation:false,responsive:false,layout:{padding:{top:34,right:14,bottom:6,left:8}},
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:TICK,font:Object.assign({},CF,{size:12,weight:'bold'})},grid:{display:false}},
+        y:{beginAtZero:true,suggestedMax:Math.max.apply(null,days.map(function(d){return dm[d]||0;}).concat([1]))*1.3,ticks:{color:TICK,font:Object.assign({},CF,{size:11}),stepSize:1},grid:{color:GRID,borderDash:[4,4]}}}}
+  };
+  var cycleCfg={ type:'line',
+    data:{ labels:days.map(function(d){return d.slice(5);}),
+      datasets:[{label:'Avg Cycle (min)',data:cycleByDay,borderColor:'#0f172a',backgroundColor:'rgba(15,23,42,0.06)',fill:true,tension:0.35,pointRadius:5,pointBackgroundColor:'#fff',pointBorderColor:'#0f172a',pointBorderWidth:2.5,borderWidth:3}]},
+    options:{animation:false,responsive:false,layout:{padding:{top:34,right:14,bottom:6,left:8}},
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:TICK,font:Object.assign({},CF,{size:12,weight:'bold'})},grid:{display:false}},
+        y:{beginAtZero:true,suggestedMax:Math.max.apply(null,cycleByDay.concat([totalBench||1]))*1.25,ticks:{color:TICK,font:Object.assign({},CF,{size:11})},grid:{color:GRID,borderDash:[4,4]}}}}
+  };
+  var utilCfg={ type:'bar',
+    data:{ labels:ST.map(function(s){return s.en;}),
       datasets:[
-        {label:'Benchmark',data:bD,backgroundColor:'rgba(226, 232, 240, 0.6)',borderColor:'rgba(148, 163, 184, 0.8)',borderWidth:1,borderRadius:4,order:2},
-        {label:'Actual Avg',data:aD,backgroundColor:barColors,borderRadius:4,borderSkipped:false,order:1}
+        {label:'Standard',data:bD,backgroundColor:'rgba(203,213,225,0.55)',borderColor:'rgba(148,163,184,0.7)',borderWidth:1,borderRadius:3,order:2},
+        {label:'Actual',data:aD,backgroundColor:utilColors,borderRadius:3,borderSkipped:false,order:1}
       ]},
-    options:{ animation:false,responsive:false, layout: { padding: { top: 35, right: 10, bottom: 10, left: 10 } },
-      plugins:{legend:{display:true,position:'top',labels:{color:'#1e293b',font:Object.assign({}, CHART_FONT, {size:15,weight:'bold'}),usePointStyle:true,boxWidth:10}}},
-      scales:{ x:{ticks:{color:TICK,font:Object.assign({}, CHART_FONT, {size:13,weight:'bold'})},grid:{display:false}},
-        y:{suggestedMax: Math.max.apply(null, aD.concat(bD)) * 1.25, ticks:{color:TICK,font:Object.assign({}, CHART_FONT, {size:12})},grid:{color:GRID,borderDash:[4,4]}}}}
+    options:{animation:false,responsive:false,layout:{padding:{top:32,right:8,bottom:6,left:8}},
+      plugins:{legend:{display:true,position:'top',labels:{color:'#1e293b',font:Object.assign({},CF,{size:12,weight:'bold'}),usePointStyle:true,boxWidth:9}}},
+      scales:{x:{ticks:{color:TICK,font:Object.assign({},CF,{size:11,weight:'bold'})},grid:{display:false}},
+        y:{beginAtZero:true,suggestedMax:Math.max.apply(null,aD.concat(bD).concat([1]))*1.25,ticks:{color:TICK,font:Object.assign({},CF,{size:11})},grid:{color:GRID,borderDash:[4,4]}}}}
   };
-
-  var dm = {}; list.forEach(function(t) { var d=String(t.date||'').slice(0,10); if(d) dm[d]=(dm[d]||0)+1; });
-  var days = Object.keys(dm).sort().slice(-14);
-  var lineCfg = {
-    type:'line',
-    data:{ labels:days.map(function(d){ return d.slice(5); }),
-      datasets:[{label:'Daily Volume',data:days.map(function(d){ return dm[d]||0; }),borderColor:'#2563eb',backgroundColor:'rgba(37, 99, 235, 0.1)',fill:true,tension:0.4,pointRadius:6,pointBackgroundColor:'#fff',pointBorderColor:'#2563eb',pointBorderWidth:3,borderWidth:4}]},
-    options:{animation:false,responsive:false, layout: { padding: { top: 35, right: 15, bottom: 10, left: 10 } },
-      plugins:{legend:{display:true,labels:{color:'#1e293b',font:Object.assign({}, CHART_FONT, {size:14,weight:'bold'})}}},
-      scales:{ x:{ticks:{color:TICK,font:Object.assign({}, CHART_FONT, {size:12, weight:'bold'})},grid:{display:false}},
-        y:{suggestedMax: Math.max.apply(null, days.map(function(d){ return dm[d]||0; }).concat([1])) * 1.25, ticks:{color:TICK,font:Object.assign({}, CHART_FONT, {size:12}),stepSize:1},grid:{color:GRID,borderDash:[4,4]}}}}
+  var ddTop=stWaste.slice(0,8).filter(function(s){return s.waste>0;});
+  if(!ddTop.length) ddTop=stWaste.slice(0,6);
+  var delayDistCfg={ type:'bar',
+    data:{ labels:ddTop.map(function(s){return s.en;}),
+      datasets:[{label:'Lost Minutes',data:ddTop.map(function(s){return s.waste;}),backgroundColor:'rgba(220,38,38,0.82)',borderRadius:3,borderSkipped:false}]},
+    options:{animation:false,responsive:false,layout:{padding:{top:32,right:10,bottom:6,left:8}},
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:TICK,font:Object.assign({},CF,{size:11,weight:'bold'})},grid:{display:false}},
+        y:{beginAtZero:true,suggestedMax:Math.max.apply(null,ddTop.map(function(s){return s.waste;}).concat([1]))*1.28,ticks:{color:TICK,font:Object.assign({},CF,{size:11})},grid:{color:GRID,borderDash:[4,4]}}}}
   };
-
-  var donutCfg = {
-    type:'doughnut',
-    data:{ labels:['Completed','In Progress','Pending'],
-      datasets:[{data:[comp.length,act.length,Math.max(0,list.length-comp.length-act.length)],backgroundColor:['rgba(16, 185, 129, 0.9)','rgba(59, 130, 246, 0.9)','rgba(203, 213, 225, 0.9)'],borderWidth:2, borderColor:'#ffffff', hoverOffset:4}]},
-    options:{animation:false,responsive:false,plugins:{legend:{display:true,position:'right',labels:{color:'#1e293b',font:Object.assign({}, CHART_FONT, {size:14,weight:'bold'}),usePointStyle:true,padding:25}}},layout:{padding:15},cutout:'55%'}
+  var donutCfg={ type:'doughnut',
+    data:{ labels:['Completed','Active','Pending'],
+      datasets:[{data:[comp.length,act.length,pending],backgroundColor:['rgba(22,163,74,0.92)','rgba(30,64,175,0.9)','rgba(203,213,225,0.9)'],borderWidth:2,borderColor:'#fff',hoverOffset:3}]},
+    options:{animation:false,responsive:false,plugins:{legend:{display:true,position:'bottom',labels:{color:'#1e293b',font:Object.assign({},CF,{size:13,weight:'bold'}),usePointStyle:true,padding:14}}},layout:{padding:10},cutout:'62%'}
   };
-
-  var paretoCfg = {
-    type:'bar',
-    data:{ labels: paretoTop.map(function(d){ return String(d.num); }),
+  var paretoCfg={ type:'bar',
+    data:{ labels:paretoTop.map(function(d){return String(d.num);}),
       datasets:[
-        { type:'bar', label:'Wasted Min', data: paretoTop.map(function(d){ return d.delay; }),
-          backgroundColor:'rgba(220,38,38,0.78)', borderRadius:4, yAxisID:'y', order:2,
-          _pdfFmt:function(v){ return v>0?{text:v+'m',txt:'#0f172a',bg:'rgba(255,255,255,0.95)',dy:-14}:null; } },
-        { type:'line', label:'Cumulative %', data: paretoCum, borderColor:'#1d4ed8', backgroundColor:'transparent',
-          tension:0.3, pointBackgroundColor:'#1d4ed8', pointRadius:5, borderWidth:3, yAxisID:'y1', order:1,
-          _pdfFmt:function(v){ return {text:Math.round(v)+'%',txt:'#ffffff',bg:'rgba(29,78,216,0.92)',dy:-16}; } }
+        {type:'bar',label:'Lost Minutes',data:paretoTop.map(function(d){return d.delay;}),backgroundColor:'rgba(220,38,38,0.80)',borderRadius:3,yAxisID:'y',order:2,
+          _pdfFmt:function(v){ return v>0?{text:v+'m',txt:'#0f172a',dy:-13}:null; }},
+        {type:'line',label:'Cumulative %',data:paretoCum,borderColor:'#1e40af',backgroundColor:'transparent',tension:0.3,pointBackgroundColor:'#1e40af',pointRadius:4,borderWidth:3,yAxisID:'y1',order:1,
+          _pdfFmt:function(v){ return {text:Math.round(v)+'%',txt:'#1e40af',dy:-15}; }}
       ]},
-    options:{ animation:false, responsive:false, layout:{padding:{top:42,right:15,bottom:10,left:10}},
-      plugins:{legend:{display:true,position:'top',labels:{color:'#1e293b',font:Object.assign({},CHART_FONT,{size:14,weight:'bold'}),usePointStyle:true,boxWidth:10}}},
-      scales:{
-        x:{ticks:{color:TICK,font:Object.assign({},CHART_FONT,{size:12,weight:'bold'})},grid:{display:false}},
-        y:{position:'left',beginAtZero:true,suggestedMax:(paretoTop[0]?paretoTop[0].delay:10)*1.3,ticks:{color:TICK,font:Object.assign({},CHART_FONT,{size:11})},grid:{color:GRID,borderDash:[4,4]}},
-        y1:{position:'right',beginAtZero:true,max:100,grid:{drawOnChartArea:false},ticks:{color:'#1d4ed8',font:Object.assign({},CHART_FONT,{size:11}),callback:function(v){return v+'%';}}}
-      }}
+    options:{animation:false,responsive:false,layout:{padding:{top:40,right:14,bottom:6,left:8}},
+      plugins:{legend:{display:true,position:'top',labels:{color:'#1e293b',font:Object.assign({},CF,{size:12,weight:'bold'}),usePointStyle:true,boxWidth:9}}},
+      scales:{x:{ticks:{color:TICK,font:Object.assign({},CF,{size:11,weight:'bold'})},grid:{display:false}},
+        y:{position:'left',beginAtZero:true,suggestedMax:(paretoTop[0]?paretoTop[0].delay:10)*1.3,ticks:{color:TICK,font:Object.assign({},CF,{size:10})},grid:{color:GRID,borderDash:[4,4]}},
+        y1:{position:'right',beginAtZero:true,max:100,grid:{drawOnChartArea:false},ticks:{color:'#1e40af',font:Object.assign({},CF,{size:10}),callback:function(v){return v+'%';}}}}}
   };
 
   var fontPromise = fetch('https://raw.githubusercontent.com/google/fonts/main/ofl/amiri/Amiri-Regular.ttf')
-    .then(function(res) { if(!res.ok) throw new Error(); return res.blob(); })
-    .then(function(blob) { return new Promise(function(resolve, reject) { var reader = new FileReader(); reader.onload = function() { resolve(reader.result.split(',')[1]); }; reader.onerror = reject; reader.readAsDataURL(blob); }); })
-    .catch(function() { return null; });
+    .then(function(res){ if(!res.ok) throw new Error(); return res.blob(); })
+    .then(function(blob){ return new Promise(function(resolve,reject){ var r=new FileReader(); r.onload=function(){resolve(r.result.split(',')[1]);}; r.onerror=reject; r.readAsDataURL(blob); }); })
+    .catch(function(){ return null; });
 
-  Promise.all([ makePDFChart(stBarCfg, 1200, 480), makePDFChart(lineCfg, 900, 420), makePDFChart(donutCfg, 600, 320), makePDFChart(paretoCfg, 1100, 460), fontPromise ]).then(function(charts) {
-    var imgBar = charts[0], imgLine = charts[1], imgDonut = charts[2], imgPareto = charts[3], b64Font = charts[4];
-    var jsPDF = window.jspdf.jsPDF;
-    var doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4', compress:true });
-    var PW = 297, PH = 210;
-    var defaultFont = 'helvetica';
-    if(b64Font) { doc.addFileToVFS('Amiri.ttf', b64Font); doc.addFont('Amiri.ttf', 'AmiriFont', 'normal'); doc.addFont('Amiri.ttf', 'AmiriFont', 'bold'); defaultFont = 'AmiriFont'; }
+  Promise.all([ makePDFChart(throughputCfg,1000,380), makePDFChart(cycleCfg,1000,380), makePDFChart(utilCfg,1000,380), makePDFChart(delayDistCfg,1000,380), makePDFChart(donutCfg,560,420), makePDFChart(paretoCfg,1120,470), fontPromise ]).then(function(ch){
+    var imgThru=ch[0], imgCycle=ch[1], imgUtil=ch[2], imgDelay=ch[3], imgDonut=ch[4], imgPareto=ch[5], b64Font=ch[6];
+    var jsPDF=window.jspdf.jsPDF;
+    var doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4',compress:true});
+    var PW=297, PH=210, ML=14, MR=14, CW=PW-ML-MR;
+    var F='helvetica';
+    if(b64Font){ doc.addFileToVFS('Amiri.ttf',b64Font); doc.addFont('Amiri.ttf','AR','normal'); doc.addFont('Amiri.ttf','AR','bold'); }
+    var AR = b64Font ? 'AR' : 'helvetica';
 
-    var pHdr = function(title) {
-      doc.setFillColor(192, 57, 43); doc.rect(0, 0, PW, 2, 'F');
-      doc.setFillColor(30, 41, 59); doc.rect(0, 2, PW, 22, 'F');
-      doc.setFontSize(16); doc.setFont(defaultFont,'bold'); doc.setTextColor(255,255,255);
-      doc.text('Cairo 3A Poultry', 15, 13);
-      doc.setFontSize(10); doc.setFont(defaultFont,'normal'); doc.setTextColor(148, 163, 184);
-      doc.text('Intelligent Vehicle Tracking System', 15, 19);
-      doc.setFontSize(15); doc.setFont(defaultFont,'bold'); doc.setTextColor(255,255,255);
-      doc.text(title, PW - 15, 16, {align:'right'});
-    };
-    var pFtr = function() {
-      doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.5); doc.line(15, PH-10, PW-15, PH-10);
-      doc.setFontSize(9); doc.setFont(defaultFont,'normal'); doc.setTextColor(148, 163, 184);
-      doc.text('Confidential Internal Report  |  Generated by: ' + uname, 15, PH-5);
-      doc.text(nowStr, PW-15, PH-5, {align:'right'});
-    };
+    var INK=[15,23,42],BLUE=[30,64,175],GREEN=[22,163,74],AMBER=[245,158,11],RED=[220,38,38],GRAY=[100,116,139],BG=[248,250,252],LINE=[226,232,240],SUB=[71,85,105],WHITE=[255,255,255],MUTE=[148,163,184];
+    function sc(c){doc.setTextColor(c[0],c[1],c[2]);}
+    function sf(c){doc.setFillColor(c[0],c[1],c[2]);}
+    function sd(c){doc.setDrawColor(c[0],c[1],c[2]);}
+    function sevColor(s){return s==='Critical'?RED:s==='High'?AMBER:(s==='Elevated'||s==='Watch')?BLUE:GREEN;}
+    function lvlColor(l){return l==='Critical'?RED:l==='High'?AMBER:l==='Medium'?BLUE:GREEN;}
+    function catColor(c){return c==='Critical Delay'?RED:c==='At Risk'?AMBER:c==='Normal'?BLUE:GREEN;}
+    function bgPage(){ sf(BG); doc.rect(0,0,PW,PH,'F'); }
+    function header(name){
+      sf(INK); doc.rect(0,0,PW,15,'F'); sf(BLUE); doc.rect(0,15,PW,0.9,'F');
+      doc.setFont(F,'bold'); doc.setFontSize(10.5); sc(WHITE); doc.text('CAIRO 3A POULTRY', ML, 7);
+      doc.setFont(F,'normal'); doc.setFontSize(7); sc(MUTE); doc.text('Vehicle Operations  |  Executive Intelligence', ML, 11.5);
+      doc.setFont(F,'bold'); doc.setFontSize(8); sc(WHITE); doc.text(String(name).toUpperCase(), PW-MR, 7, {align:'right'});
+      doc.setFont(F,'normal'); doc.setFontSize(6.6); sc(MUTE); doc.text('Period  '+from+'  —  '+to, PW-MR, 11.5, {align:'right'});
+    }
+    function band(y,kicker,title){
+      doc.setFont(F,'bold'); doc.setFontSize(7); sc(BLUE); doc.text(String(kicker).toUpperCase(), ML, y);
+      doc.setFont(F,'bold'); doc.setFontSize(15); sc(INK); doc.text(title, ML, y+6.5);
+      sd(LINE); doc.setLineWidth(0.4); doc.line(ML, y+9.5, PW-MR, y+9.5);
+      return y+9.5;
+    }
+    function newPage(name){ doc.addPage(); bgPage(); header(name); }
+    function pillC(cx,y,text,col){ doc.setFont(F,'bold'); doc.setFontSize(7); var w=doc.getTextWidth(text)+5; sf(col); doc.roundedRect(cx-w/2,y,w,5,2.5,2.5,'F'); sc(WHITE); doc.text(text,cx,y+3.5,{align:'center'}); }
+    function chartCard(x,y,w,h,title,img,obs,impl){
+      sf(WHITE); sd(LINE); doc.setLineWidth(0.3); doc.roundedRect(x,y,w,h,2,2,'FD');
+      doc.setFont(F,'bold'); doc.setFontSize(9); sc(INK); doc.text(title, x+5, y+7);
+      var ih=h-30; if(img) doc.addImage(img,'JPEG',x+3,y+10,w-6,ih);
+      var ty=y+10+ih+3;
+      doc.setFont(F,'bold'); doc.setFontSize(6.4); sc(BLUE); doc.text('OBSERVATION', x+5, ty);
+      doc.setFont(F,'normal'); doc.setFontSize(6.6); sc(SUB); doc.text(doc.splitTextToSize(obs,w-10), x+5, ty+3.4);
+      doc.setFont(F,'bold'); doc.setFontSize(6.4); sc(GRAY); doc.text('IMPLICATION', x+5, ty+10);
+      doc.setFont(F,'normal'); doc.setFontSize(6.6); sc(SUB); doc.text(doc.splitTextToSize(impl,w-10), x+5, ty+13.4);
+    }
+    function exTable(opts){
+      doc.autoTable(Object.assign({
+        theme:'grid',
+        styles:{font:F,fontSize:7.6,cellPadding:2.2,textColor:SUB,lineColor:[233,238,244],lineWidth:0.1,valign:'middle'},
+        headStyles:{fillColor:INK,textColor:WHITE,fontStyle:'bold',fontSize:7.6,halign:'center',cellPadding:2.6},
+        alternateRowStyles:{fillColor:[247,249,252]},
+        margin:{left:ML,right:MR}
+      }, opts));
+    }
 
-    pHdr('Executive Summary & Overview');
-    doc.setFillColor(248, 250, 252); doc.roundedRect(15, 32, 130, 52, 3, 3, 'F');
-    doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.3); doc.roundedRect(15, 32, 130, 52, 3, 3, 'S');
-    doc.setFillColor(192, 57, 43); doc.rect(15, 32, 2, 52, 'F');
-    doc.setFontSize(13); doc.setFont(defaultFont,'bold'); doc.setTextColor(15, 23, 42);
-    doc.text('Period Analysis', 22, 42);
-    var worstSt = ST.reduce(function(w,s,i){ return aD[i]>bD[i] && (aD[i]/bD[i]) > (w.ratio||0) ? {s:s,ratio:aD[i]/bD[i],actual:aD[i],bench:bD[i]} : w; }, {});
-    doc.setFontSize(11); doc.setFont(defaultFont,'normal'); doc.setTextColor(71, 85, 105);
-    doc.text("From: " + from + "   To: " + to, 22, 50);
-    doc.text("Total vehicles processed: " + list.length + " (" + (list.length > 0 ? Math.round(comp.length/list.length*100) : 0) + "% completion rate)", 22, 58);
-    doc.text("Average trip time: " + (avg ? avg + " minutes" : "N/A"), 22, 66);
-    doc.setFont(defaultFont,'bold');
-    doc.text("Peak Hour: " + peakHourText, 22, 74);
-    if(worstSt.s) { doc.setTextColor(220, 38, 38); doc.text("Primary Bottleneck: " + worstSt.s.en + " (+" + Math.round((worstSt.ratio-1)*100) + "% over benchmark)", 22, 82); }
-
-    var kpis = [ {l:'Total Vehicles', v:list.length, c:[51,65,85]}, {l:'Completed', v:comp.length, c:[16,185,129]}, {l:'In Progress', v:act.length, c:[37,99,235]}, {l:'Avg. Time (min)', v:avg||'—', c:[245,158,11]} ];
-    kpis.forEach(function(k, i) {
-      var x = 155 + (i%2)*65; var y = 32 + Math.floor(i/2)*28;
-      doc.setFillColor(255, 255, 255); doc.roundedRect(x, y, 60, 24, 2, 2, 'F');
-      doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.3); doc.roundedRect(x, y, 60, 24, 2, 2, 'S');
-      doc.setFontSize(10); doc.setFont(defaultFont,'normal'); doc.setTextColor(100, 116, 139); doc.text(k.l, x+5, y+8);
-      doc.setFontSize(18); doc.setFont(defaultFont,'bold'); doc.setTextColor(k.c[0],k.c[1],k.c[2]); doc.text(String(k.v), x+5, y+20);
+    /* ═══════════ PAGE 1 — EXECUTIVE SUMMARY ═══════════ */
+    bgPage(); header('Executive Summary');
+    var y1=band(26,'Section 01','Executive Summary');
+    var rateCol=complRate>=90?GREEN:complRate>=75?AMBER:RED;
+    var cycCol=avgCycle<=totalBench?GREEN:avgCycle<=totalBench*1.3?AMBER:RED;
+    var kpis=[
+      {l:'Total Vehicles',v:N,u:'units',i:'All vehicles tracked in the selected period.',s:'TRACKED',c:BLUE},
+      {l:'Completed Trips',v:comp.length,u:'('+complRate+'%)',i:'Finished the full '+ST.length+'-station cycle.',s:complRate>=90?'ON TRACK':complRate>=75?'WATCH':'BELOW',c:GREEN},
+      {l:'Active Trips',v:act.length,u:'in progress',i:'Currently moving through the operation.',s:'LIVE',c:BLUE},
+      {l:'Completion Rate',v:complRate,u:'%',i:'Share completing the full cycle.',s:complRate>=90?'HEALTHY':complRate>=75?'MODERATE':'AT RISK',c:rateCol},
+      {l:'Avg Processing Time',v:avgCycle,u:'min',i:'Cycle vs '+totalBench+'-min standard.',s:avgCycle<=totalBench?'WITHIN':'OVER',c:cycCol},
+      {l:'Peak Operating Hour',v:(peakHour!=='N/A'?peakHour+':00':'N/A'),u:'',i:'Highest inflow — '+peakHourText+'.',s:'PEAK',c:INK}
+    ];
+    var kpw=(CW-2*6)/3, kph=31, kx0=ML, ky0=y1+6;
+    kpis.forEach(function(k,idx){
+      var x=kx0+(idx%3)*(kpw+6), y=ky0+Math.floor(idx/3)*(kph+6);
+      sf(WHITE); sd(LINE); doc.setLineWidth(0.3); doc.roundedRect(x,y,kpw,kph,2,2,'FD');
+      sf(k.c); doc.roundedRect(x,y,1.5,kph,0.7,0.7,'F');
+      doc.setFont(F,'bold'); doc.setFontSize(6.6); sc(GRAY); doc.text(k.l.toUpperCase(), x+6, y+6.5);
+      doc.setFont(F,'bold'); doc.setFontSize(19); sc(INK); doc.text(String(k.v), x+6, y+17);
+      var vw=doc.getTextWidth(String(k.v));
+      if(k.u){ doc.setFont(F,'normal'); doc.setFontSize(7.5); sc(GRAY); doc.text(k.u, x+6+vw+2, y+17); }
+      doc.setFont(F,'bold'); doc.setFontSize(6.4); var pw=doc.getTextWidth(k.s)+5; sf(k.c); doc.roundedRect(x+kpw-pw-4,y+4.5,pw,4.6,2.3,2.3,'F'); sc(WHITE); doc.text(k.s,x+kpw-pw-4+pw/2,y+7.7,{align:'center'});
+      doc.setFont(F,'normal'); doc.setFontSize(6.5); sc(SUB); doc.text(doc.splitTextToSize(k.i,kpw-12), x+6, y+23);
     });
 
-    doc.setFontSize(12); doc.setFont(defaultFont,'bold'); doc.setTextColor(15, 23, 42);
-    doc.text('Top 5 Delayed Vehicles (Variance vs Benchmark)', 15, 100);
-    if(top5Delays.length > 0) {
-      var dRows0 = top5Delays.map(function(d, i){ return [i+1, d.num, '+' + d.delay + 'm wasted']; });
-      doc.autoTable({ startY: 105, margin: {left: 15, right: 150}, head: [['#', 'Vehicle Number', 'Total Delay Time']], body: dRows0,
-        theme: 'plain', styles: { font: defaultFont, fontSize: 10, cellPadding: 3 }, headStyles: { fillColor: [254, 226, 226], textColor: [185, 28, 28], fontStyle: 'bold' }, alternateRowStyles: { fillColor: [248, 250, 252] } });
-    } else { doc.setFontSize(10); doc.setFont(defaultFont,'normal'); doc.setTextColor(16, 185, 129); doc.text("No significant delays detected in this period.", 15, 110); }
-
-    if(imgDonut) { doc.setFontSize(12); doc.setFont(defaultFont,'bold'); doc.setTextColor(15, 23, 42); doc.text('Status Distribution', 150, 100); doc.addImage(imgDonut,'JPEG',145, 105, 135, 65); }
-    pFtr();
-
-    doc.addPage(); pHdr('Performance Visualizations');
-    if(imgBar) {
-      doc.setFontSize(13); doc.setFont(defaultFont,'bold'); doc.setTextColor(15, 23, 42);
-      doc.text('Station Performance: Actual Average vs. Benchmark (Minutes)', 15, 35);
-      doc.setFillColor(255, 255, 255); doc.roundedRect(15, 40, 160, 150, 4, 4, 'F');
-      doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.5); doc.roundedRect(15, 40, 160, 150, 4, 4, 'S');
-      doc.addImage(imgBar,'JPEG', 18, 45, 154, 140);
-    }
-    if(imgLine) {
-      doc.setFontSize(13); doc.setFont(defaultFont,'bold'); doc.setTextColor(15, 23, 42);
-      doc.text('Daily Volume Trend', 185, 35);
-      doc.setFillColor(255, 255, 255); doc.roundedRect(185, 40, 97, 150, 4, 4, 'F');
-      doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.5); doc.roundedRect(185, 40, 97, 150, 4, 4, 'S');
-      doc.addImage(imgLine,'JPEG', 188, 55, 91, 120);
-    }
-    pFtr();
-
-    if(imgPareto && delayList.length) {
-      doc.addPage(); pHdr('Delay Pareto Analysis (80/20 Rule)');
-      doc.setFontSize(13); doc.setFont(defaultFont,'bold'); doc.setTextColor(15, 23, 42);
-      doc.text('Where the Delay Comes From', 15, 35);
-      doc.setFontSize(10); doc.setFont(defaultFont,'normal'); doc.setTextColor(71, 85, 105);
-      doc.text('The red bars rank vehicles by total wasted minutes; the blue line shows the cumulative share of all delay.', 15, 42);
-      doc.setFont(defaultFont,'bold'); doc.setTextColor(192, 57, 43);
-      doc.text('Key insight: ' + pareto80 + ' vehicle(s) account for ~80% of the entire period\'s delay (' + totalWaste + ' min total).', 15, 49);
-      doc.setFillColor(255,255,255); doc.roundedRect(15, 54, PW-30, 132, 4, 4, 'F');
-      doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.5); doc.roundedRect(15, 54, PW-30, 132, 4, 4, 'S');
-      doc.addImage(imgPareto,'JPEG', 20, 59, PW-40, 122);
-      pFtr();
-    }
-
-    doc.addPage(); pHdr('Detailed Benchmark Matrix');
-    var bY = 35;
-    var cols = [15, 25, 75, 115, 150, 185, 250, PW-15];
-    doc.setFillColor(241, 245, 249); doc.rect(15, bY, PW-30, 12, 'F');
-    ['#','Station Name','Benchmark','Actual Avg','Variance','Performance Indicator','Status'].forEach(function(h,i) {
-      doc.setFontSize(10); doc.setFont(defaultFont,'bold'); doc.setTextColor(71, 85, 105);
-      var cx = i===0?cols[0]+5:i===1?cols[1]+5:(cols[i-1]+cols[i])/2;
-      doc.text(h, cx, bY+7.5, {align:i<2?'left':'center'});
+    var secY=ky0+2*(kph+6)+6;
+    var colGap=8, leftW=CW*0.56, rightX=ML+leftW+colGap, rightW=CW-leftW-colGap;
+    doc.setFont(F,'bold'); doc.setFontSize(9.5); sc(INK); doc.text('EXECUTIVE INSIGHTS', ML, secY);
+    sd(LINE); doc.setLineWidth(0.3); doc.line(ML, secY+2.5, ML+leftW, secY+2.5);
+    var iy=secY+8;
+    insights.forEach(function(ins){
+      sf(BLUE); doc.circle(ML+1.5, iy-1, 1, 'F');
+      doc.setFont(F,'bold'); doc.setFontSize(7.6); sc(INK); doc.text(ins[0], ML+5, iy);
+      doc.setFont(F,'normal'); doc.setFontSize(7); sc(SUB); var ln=doc.splitTextToSize(ins[1], leftW-6); doc.text(ln, ML+5, iy+3.8);
+      iy += 4 + ln.length*3.2 + 3.4;
     });
-    bY += 12;
-    ST.forEach(function(s,i) {
-      var actual=aD[i], b=bD[i], diff=actual>0?actual-b:null;
-      var color=diff==null?[148, 163, 184]:diff>b*0.2?[220, 38, 38]:diff>0?[245, 158, 11]:[16, 185, 129];
-      var statusTxt=diff==null?'NO DATA':diff>b*0.2?'CRITICAL DELAY':diff>0?'SLOWER':'OPTIMAL';
-      var rowH=17;
-      doc.setFillColor(i%2===0?255:248, i%2===0?255:250, i%2===0?255:252); doc.rect(15, bY, PW-30, rowH, 'F');
-      doc.setFontSize(11); doc.setFont(defaultFont,'normal'); doc.setTextColor(51, 65, 85); doc.text(String(i+1), cols[0]+5, bY+11);
-      doc.setFont(defaultFont,'bold'); doc.setTextColor(15, 23, 42); doc.text(s.en, cols[1]+5, bY+11);
-      doc.setFont(defaultFont,'bold'); doc.setTextColor(100, 116, 139); doc.text(b+'m', (cols[2]+cols[3])/2, bY+11, {align:'center'});
-      doc.setTextColor(color[0],color[1],color[2]); doc.text(actual>0?actual+'m':'—', (cols[3]+cols[4])/2, bY+11, {align:'center'});
-      if(diff!=null){ doc.text((diff>0?'+':'')+diff+'m', (cols[4]+cols[5])/2, bY+11, {align:'center'}); }
-      if(actual>0){
-        var barX=cols[5]+5, barW=cols[6]-cols[5]-10, barMax=Math.max(b*1.5, actual+5);
-        doc.setFillColor(226, 232, 240); doc.roundedRect(barX, bY+6, barW, 5, 2.5, 2.5, 'F');
-        var bMark=Math.min((b/barMax)*barW, barW);
-        doc.setFillColor(148, 163, 184); doc.roundedRect(barX, bY+6, bMark, 5, 2.5, 2.5, 'F');
-        var aW=Math.min((actual/barMax)*barW, barW);
-        doc.setFillColor(color[0],color[1],color[2]); doc.roundedRect(barX, bY+6, aW, 5, 2.5, 2.5, 'F');
-        doc.setDrawColor(15, 23, 42); doc.setLineWidth(0.5); doc.line(barX+bMark, bY+4, barX+bMark, bY+13);
+
+    doc.setFont(F,'bold'); doc.setFontSize(9.5); sc(INK); doc.text('EXECUTIVE RISK PANEL', rightX, secY);
+    sd(LINE); doc.setLineWidth(0.3); doc.line(rightX, secY+2.5, rightX+rightW, secY+2.5);
+    var ry=secY+7;
+    risks.forEach(function(rk){
+      var rh=12.5; sf(WHITE); sd(LINE); doc.setLineWidth(0.3); doc.roundedRect(rightX, ry, rightW, rh, 1.5,1.5,'FD');
+      var lc=lvlColor(rk.level); sf(lc); doc.roundedRect(rightX, ry, 1.4, rh, 0.6,0.6,'F');
+      doc.setFont(F,'bold'); doc.setFontSize(7.4); sc(INK); doc.text(rk.area, rightX+5, ry+5);
+      doc.setFont(F,'normal'); doc.setFontSize(6.4); sc(SUB); doc.text(doc.splitTextToSize(rk.impact, rightW-30), rightX+5, ry+9);
+      doc.setFont(F,'bold'); doc.setFontSize(6.4); var lw=doc.getTextWidth(rk.level.toUpperCase())+5; sf(lc); doc.roundedRect(rightX+rightW-lw-4, ry+3.6, lw, 5, 2.5,2.5,'F'); sc(WHITE); doc.text(rk.level.toUpperCase(), rightX+rightW-lw-4+lw/2, ry+7, {align:'center'});
+      ry += rh+3;
+    });
+
+    /* ═══════════ PAGE 2 — PERFORMANCE DASHBOARD ═══════════ */
+    newPage('Performance Dashboard');
+    var y2=band(26,'Section 02','Executive Performance Dashboard');
+    var cgY=y2+5, cgW=(CW-7)/2, cgH=(PH-cgY-14-7)/2;
+    chartCard(ML, cgY, cgW, cgH, 'Throughput Trend (Vehicles / Day)', imgThru,
+      'Daily inflow '+(days.length>1?('moved from '+(dm[days[0]]||0)+' to '+(dm[days[days.length-1]]||0)+' vehicles.'):'is concentrated in a single day.'),
+      'Sustained volume validates capacity planning; sharp drops signal demand or tracking gaps.');
+    chartCard(ML+cgW+7, cgY, cgW, cgH, 'Cycle Time Trend (Avg Minutes)', imgCycle,
+      'Average cycle averages '+avgCycle+' min against a '+totalBench+'-min standard.',
+      (avgCycle<=totalBench?'Cycle is within standard — efficient flow.':'Cycle exceeds standard — review bottleneck stations.'));
+    chartCard(ML, cgY+cgH+7, cgW, cgH, 'Station Utilization (Actual vs Standard)', imgUtil,
+      mainBn.en+' shows the widest gap versus standard ('+(mainBn.varPct>0?'+':'')+mainBn.varPct+'%).',
+      'Stations above standard constrain throughput and are primary improvement targets.');
+    chartCard(ML+cgW+7, cgY+cgH+7, cgW, cgH, 'Delay Distribution (Lost Minutes)', imgDelay,
+      (ddTop[0]?(ddTop[0].en+' contributes the most lost minutes.'):'Delay is minimal across stations.'),
+      'Delay concentrates in a few stations — focused fixes yield outsized gains.');
+
+    /* ═══════════ PAGE 3 — BOTTLENECK INTELLIGENCE ═══════════ */
+    newPage('Bottleneck Intelligence');
+    var y3=band(26,'Section 03','Bottleneck Intelligence');
+    var coY=y3+5, coH=24;
+    sf(WHITE); sd(LINE); doc.setLineWidth(0.3); doc.roundedRect(ML,coY,CW,coH,2,2,'FD');
+    sf(sevColor(mainBn.sev)); doc.roundedRect(ML,coY,2,coH,1,1,'F');
+    doc.setFont(F,'bold'); doc.setFontSize(7); sc(GRAY); doc.text('PRIMARY BOTTLENECK', ML+6, coY+6);
+    doc.setFont(F,'bold'); doc.setFontSize(14); sc(INK); doc.text(mainBn.en, ML+6, coY+15);
+    pillC(ML+6+doc.getTextWidth(mainBn.en)+14, coY+11, mainBn.sev.toUpperCase(), sevColor(mainBn.sev));
+    doc.setFont(F,'normal'); doc.setFontSize(6.6); sc(SUB); doc.text('Root cause: '+_rootCause(mainBn), ML+6, coY+20.5);
+    var b1=ML+CW*0.62;
+    [['Standard',mainBn.bench+' min'],['Actual',mainBn.actual+' min'],['Variance',(mainBn.varPct>0?'+':'')+mainBn.varPct+'%'],['Priority',String(mainBn.priority)]].forEach(function(m,ix){
+      var bx=b1+ix*((CW*0.38)/4);
+      doc.setFont(F,'normal'); doc.setFontSize(6); sc(GRAY); doc.text(m[0].toUpperCase(), bx, coY+7);
+      doc.setFont(F,'bold'); doc.setFontSize(11); sc(ix===2?(mainBn.varPct>0?RED:GREEN):INK); doc.text(m[1], bx, coY+15);
+    });
+
+    var bodyB=stByPri.map(function(s){ return [s.en, s.bench+'m', s.actual+'m', (s.varPct>0?'+':'')+s.varPct+'%', s.sev, String(s.priority), _recommend(s)]; });
+    exTable({ startY:coY+coH+6, head:[['Station','Standard','Actual','Variance','Severity','Priority','Management Recommendation']], body:bodyB,
+      columnStyles:{0:{fontStyle:'bold',textColor:INK,halign:'left',cellWidth:34},1:{halign:'center'},2:{halign:'center'},3:{halign:'center',fontStyle:'bold'},4:{halign:'center'},5:{halign:'center'},6:{halign:'left'}},
+      didParseCell:function(d){
+        if(d.section==='body'){
+          if(d.column.index===4){ var c=sevColor(d.cell.raw); d.cell.styles.fillColor=c; d.cell.styles.textColor=WHITE; d.cell.styles.fontStyle='bold'; }
+          if(d.column.index===3){ var rw=String(d.cell.raw); d.cell.styles.textColor = rw.indexOf('+')===0 ? RED : GREEN; }
+          if(d.column.index===5){ d.cell.styles.textColor=INK; d.cell.styles.fontStyle='bold'; }
+        }
       }
-      var bx = cols[6]+5, bww = cols[7]-cols[6]-10;
-      doc.setFillColor(color[0],color[1],color[2]); doc.roundedRect(bx, bY+3.5, bww, 10, 2, 2, 'F');
-      doc.setFontSize(9); doc.setFont(defaultFont,'bold'); doc.setTextColor(255,255,255); doc.text(statusTxt, bx+bww/2, bY+10, {align:'center'});
-      doc.setDrawColor(241, 245, 249); doc.setLineWidth(0.5); doc.line(15, bY+rowH, PW-15, bY+rowH);
-      bY += rowH;
     });
-    pFtr();
+    doc.setFont(F,'italic'); doc.setFontSize(6.6); sc(GRAY); doc.text('Priority = variance severity weighted by station traffic. Severity bands: Optimal < +5%, Elevated +5–40%, High +40–100%, Critical > +100%.', ML, doc.lastAutoTable.finalY+5);
 
-    var tableStyles = { theme: 'plain', styles: { font: defaultFont, fontSize: 10, cellPadding: 4, textColor: [51, 65, 85] }, headStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 11 }, alternateRowStyles: { fillColor: [248, 250, 252] }, margin: { left: 15, right: 15 } };
+    /* ═══════════ PAGE 4 — DELAY INTELLIGENCE ═══════════ */
+    newPage('Delay Intelligence Center');
+    var y4=band(26,'Section 04','Delay Intelligence Center');
+    var pgW=CW*0.50, pgX=ML, pgY=y4+5, pgH=PH-pgY-32;
+    sf(WHITE); sd(LINE); doc.setLineWidth(0.3); doc.roundedRect(pgX,pgY,pgW,pgH,2,2,'FD');
+    doc.setFont(F,'bold'); doc.setFontSize(9); sc(INK); doc.text('Delay Pareto — 80/20 Concentration', pgX+5, pgY+7);
+    if(imgPareto) doc.addImage(imgPareto,'JPEG',pgX+3,pgY+10,pgW-6,pgH-14);
+    var tX=pgX+pgW+8, tW=CW-pgW-8;
+    doc.setFont(F,'bold'); doc.setFontSize(9); sc(INK); doc.text('Critical Delay Ranking', tX, pgY+5);
+    var drows=delayList.slice(0,10).map(function(d,i){ return [String(i+1), String(d.num), d.delay+'m', (totalWaste?Math.round(d.delay/totalWaste*100):0)+'%']; });
+    if(!drows.length) drows=[['—','No delays','0m','0%']];
+    exTable({ startY:pgY+8, margin:{left:tX,right:MR}, tableWidth:tW,
+      head:[['Rank','Vehicle','Lost Min','Contribution']], body:drows,
+      columnStyles:{0:{halign:'center',cellWidth:12},1:{fontStyle:'bold',textColor:INK,font:AR},2:{halign:'center',fontStyle:'bold',textColor:[220,38,38]},3:{halign:'center'}} });
+    var cmtY=pgY+pgH+6;
+    sf([239,242,247]); doc.roundedRect(ML,cmtY,CW,20,2,2,'F'); sf(BLUE); doc.roundedRect(ML,cmtY,2,20,1,1,'F');
+    doc.setFont(F,'bold'); doc.setFontSize(7.4); sc(BLUE); doc.text('EXECUTIVE COMMENTARY', ML+6, cmtY+6);
+    doc.setFont(F,'normal'); doc.setFontSize(7.2); sc(INK);
+    var cmt = totalWaste>0 ? ('Delay is highly concentrated: '+pareto80+' vehicle(s) generate ~80% of the '+totalWaste+' lost minutes. Management intervention on this small cohort — and on the '+mainBn.en+' station — will recover the majority of lost throughput at minimal operational cost.') : 'No material delay was recorded in this period; the operation is running within standard.';
+    doc.text(doc.splitTextToSize(cmt, CW-12), ML+6, cmtY+11);
 
-    doc.addPage(); pHdr("General Vehicle Trip Log");
-    var tRows = list.map(function(t,i) {
-      var done = ST.filter(function(s){ return t.stations&&t.stations[s.key]&&t.stations[s.key].out; }).length;
-      var fi=ST.map(function(s){ return t.stations&&t.stations[s.key]&&t.stations[s.key].in; }).filter(Boolean)[0]||'—';
-      var isC  = done>=ST.length;
-      return[i+1, String(t.num||'—'), String(t.date||'').slice(0,10), fi, done+'/'+ST.length, t.totalDur?t.totalDur+'m':'—', isC?'COMPLETE':done>0?'IN PROGRESS':'PENDING'];
+    /* ═══════════ PAGE 5 — VEHICLE PERFORMANCE ═══════════ */
+    newPage('Vehicle Performance Analysis');
+    var y5=band(26,'Section 05','Vehicle Performance Analysis');
+    var cats=[['High Performance',catCount['High Performance'],GREEN,'Score ≥ 90'],['Normal',catCount['Normal'],BLUE,'Score 70–89'],['At Risk',catCount['At Risk'],AMBER,'Score 40–69'],['Critical Delay',catCount['Critical Delay'],RED,'Score < 40']];
+    var ccw=(CW-3*6)/4, ccy=y5+6, tot5=Math.max(1,started.length);
+    cats.forEach(function(c,ix){
+      var x=ML+ix*(ccw+6);
+      sf(WHITE); sd(LINE); doc.setLineWidth(0.3); doc.roundedRect(x,ccy,ccw,30,2,2,'FD'); sf(c[2]); doc.roundedRect(x,ccy,ccw,1.6,0.8,0.8,'F');
+      doc.setFont(F,'bold'); doc.setFontSize(6.8); sc(GRAY); doc.text(c[0].toUpperCase(), x+5, ccy+8);
+      doc.setFont(F,'bold'); doc.setFontSize(22); sc(c[2]); doc.text(String(c[1]), x+5, ccy+20);
+      doc.setFont(F,'normal'); doc.setFontSize(7); sc(SUB); doc.text(Math.round(c[1]/tot5*100)+'%  of fleet', x+5, ccy+26);
+      doc.setFontSize(6.2); sc(GRAY); doc.text(c[3], x+ccw-5, ccy+26, {align:'right'});
     });
-    doc.autoTable(Object.assign({}, tableStyles, {
-      startY: 35, head: [['#','Vehicle No.','Date','Started','Stages','Total Time','Final Status']], body: tRows,
-      didParseCell: function(d){ if(d.section==='body'&&d.column.index===6){ var v=d.cell.raw; d.cell.styles.textColor = v==='COMPLETE'?[16,185,129]:v==='IN PROGRESS'?[37,99,235]:[148,163,184]; d.cell.styles.fontStyle = 'bold'; } }
-    }));
-    pFtr();
+    var dbY=ccy+36;
+    doc.setFont(F,'bold'); doc.setFontSize(8); sc(INK); doc.text('Fleet Distribution', ML, dbY-2);
+    var dbx=ML, dbw=CW, dbh=7;
+    cats.forEach(function(c){ var seg=c[1]/tot5*dbw; if(seg>0){ sf(c[2]); doc.rect(dbx,dbY,seg,dbh,'F'); dbx+=seg; } });
+    sd(WHITE); doc.setLineWidth(0.4); doc.rect(ML,dbY,dbw,dbh,'S');
+    doc.setFont(F,'bold'); doc.setFontSize(8.5); sc(INK); doc.text('Vehicles Requiring Attention (lowest performance scores)', ML, dbY+dbh+8);
+    var vrows=criticalVeh.map(function(v){ return [String(v.num), String(v.score), v.delay+'m', v.cat]; });
+    if(!vrows.length) vrows=[['—','100','0m','High Performance']];
+    exTable({ startY:dbY+dbh+11, head:[['Vehicle','Performance Score','Total Delay','Status']], body:vrows,
+      columnStyles:{0:{fontStyle:'bold',textColor:INK,font:AR,halign:'left'},1:{halign:'center',fontStyle:'bold'},2:{halign:'center'},3:{halign:'center',fontStyle:'bold'}},
+      didParseCell:function(d){ if(d.section==='body'){ if(d.column.index===3){ var c=catColor(d.cell.raw); d.cell.styles.fillColor=c; d.cell.styles.textColor=WHITE; } if(d.column.index===1){ var sv=Number(d.cell.raw); d.cell.styles.textColor= sv>=70?GREEN: sv>=40?AMBER:RED; } } } });
 
-    doc.addPage(); pHdr("Detailed Audit Trail (Station by Station)");
-    var dRows = [];
-    list.forEach(function(t) {
-      ST.forEach(function(s,i) {
-        var st = (t.stations && t.stations[s.key]);
-        if(!st || (!st.in && !st.out)) return;
-        var b = bD[i];
-        var d = _liveDur(t, s);
-        var diff = d != null ? d - b : null;
-        var diffStr = diff!=null ? (diff>0?'+'+diff+'m':diff+'m') : '—';
-        var status = !st.out ? ((diff!=null&&diff>0) ? 'IN-PROGRESS!' : 'IN PROGRESS') : diff>b*0.2 ? 'DELAYED' : diff>0 ? 'SLOW' : 'ON TIME';
-        dRows.push([String(t.num||'—'), (i+1)+'. '+s.en, st.in||'—', st.out||'—', d!=null?d+'m':'—', b+'m', diffStr, status]);
-      });
+    /* ═══════════ PAGE 6 — DATA QUALITY & SYSTEM HEALTH ═══════════ */
+    newPage('Data Quality & System Health');
+    var y6=band(26,'Section 06','Data Quality & System Health');
+    var hsY=y6+6;
+    sf(WHITE); sd(LINE); doc.setLineWidth(0.3); doc.roundedRect(ML,hsY,CW,26,2,2,'FD');
+    var hCol=health>=80?GREEN:health>=60?AMBER:RED;
+    doc.setFont(F,'bold'); doc.setFontSize(7); sc(GRAY); doc.text('OVERALL SYSTEM HEALTH SCORE', ML+6, hsY+7);
+    doc.setFont(F,'bold'); doc.setFontSize(26); sc(hCol); doc.text(health+'%', ML+6, hsY+20);
+    pillC(ML+6+doc.getTextWidth(health+'%')+16, hsY+13, 'CONFIDENCE: '+confidence.toUpperCase(), hCol);
+    var barX=ML+CW*0.42, barW=CW*0.52;
+    doc.setFont(F,'normal'); doc.setFontSize(6.6); sc(GRAY); doc.text('0', barX, hsY+22); doc.text('100', barX+barW, hsY+22, {align:'right'});
+    sf([226,232,240]); doc.roundedRect(barX,hsY+13,barW,5,2.5,2.5,'F'); sf(hCol); doc.roundedRect(barX,hsY+13,barW*health/100,5,2.5,2.5,'F');
+    doc.setFont(F,'normal'); doc.setFontSize(6.6); sc(SUB); doc.text('Composite of data completeness (40%), completion rate (35%), and tracking integrity (25%).', barX, hsY+10);
+
+    var dq=[['Data Completeness',completeness+'%','Closed stage events vs expected',completeness>=85?GREEN:completeness>=60?AMBER:RED],
+            ['Tracking Coverage',coverage+'%','Stages with a recorded entry',coverage>=85?GREEN:coverage>=60?AMBER:RED],
+            ['Tracking Integrity',integrity+'%','Entries that were properly closed',integrity>=85?GREEN:integrity>=60?AMBER:RED],
+            ['Open Records',String(openCount),'Entries without a checkout',openCount===0?GREEN:openCount<5?AMBER:RED],
+            ['Vehicles w/o Data',String(noData),'Registered but never scanned',noData===0?GREEN:AMBER],
+            ['Active Tracking',String(act.length),'Vehicles currently in process',BLUE]];
+    var dqw=(CW-2*6)/3, dqy=hsY+32;
+    dq.forEach(function(d,ix){
+      var x=ML+(ix%3)*(dqw+6), y=dqy+Math.floor(ix/3)*(28+6);
+      sf(WHITE); sd(LINE); doc.setLineWidth(0.3); doc.roundedRect(x,y,dqw,28,2,2,'FD'); sf(d[3]); doc.roundedRect(x,y,1.4,28,0.7,0.7,'F');
+      doc.setFont(F,'bold'); doc.setFontSize(6.6); sc(GRAY); doc.text(d[0].toUpperCase(), x+5, y+7);
+      doc.setFont(F,'bold'); doc.setFontSize(18); sc(d[3]); doc.text(d[1], x+5, y+18);
+      doc.setFont(F,'normal'); doc.setFontSize(6.4); sc(SUB); doc.text(doc.splitTextToSize(d[2],dqw-10), x+5, y+24);
     });
-    doc.autoTable(Object.assign({}, tableStyles, {
-      startY: 35, head: [['Vehicle','Station','Time In','Time Out','Actual','Target','Variance','Status']], body: dRows,
-      didParseCell: function(d){ if(d.section==='body'&&d.column.index===7){ var v=d.cell.raw; d.cell.styles.textColor = v==='DELAYED'?[220,38,38] : v==='ON TIME'?[16,185,129] : v==='SLOW'?[245,158,11] : [148,163,184]; d.cell.styles.fontStyle = 'bold'; } }
-    }));
-    pFtr();
+    var limY=dqy+2*(28+6)+2;
+    sf([254,249,235]); doc.roundedRect(ML,limY,CW,16,2,2,'F'); sf(AMBER); doc.roundedRect(ML,limY,2,16,1,1,'F');
+    doc.setFont(F,'bold'); doc.setFontSize(7.2); sc([146,92,7]); doc.text('REPORTING LIMITATIONS', ML+6, limY+6);
+    doc.setFont(F,'normal'); doc.setFontSize(6.8); sc([120,82,20]);
+    doc.text(doc.splitTextToSize((openCount>0?(openCount+' open tracking record(s) remain un-checked-out and may overstate processing time. '):'')+(noData>0?(noData+' registered vehicle(s) have no scan data. '):'')+'Figures for in-progress vehicles are live and will finalize at checkout. Management confidence: '+confidence+'.', CW-12), ML+6, limY+11);
 
-    var pgCount = doc.getNumberOfPages();
-    for(var pg=1; pg<=pgCount; pg++) { doc.setPage(pg); doc.setFontSize(9); doc.setFont(defaultFont,'normal'); doc.setTextColor(148, 163, 184); doc.text("Page " + pg + " of " + pgCount, PW/2, PH-5, {align:'center'}); }
+    /* ═══════════ PAGE 7 — OPERATIONAL AUDIT TRAIL ═══════════ */
+    newPage('Operational Audit Trail');
+    var y7=band(26,'Section 07','Operational Audit Trail');
+    var aRows=[]; var aCap=26;
+    list.forEach(function(t){ ST.forEach(function(s,i){ if(aRows.length>=aCap) return; var st=t.stations&&t.stations[s.key]; if(!st||(!st.in&&!st.out)) return; var d=_liveDur(t,s); var b=bD[i]; var diff=d!=null?d-b:null;
+      var status=!st.out?'IN PROGRESS':diff>b*0.2?'DELAYED':diff>0?'SLOW':'ON TIME';
+      aRows.push([String(t.num),(i+1)+'. '+s.en, st.in||'—', st.out||'—', d!=null?d+'m':'—', b+'m', status]); }); });
+    exTable({ startY:y7+5, head:[['Vehicle','Station','Entry','Exit','Duration','Standard','Status']], body:aRows,
+      styles:{font:F,fontSize:7,cellPadding:1.7,textColor:SUB,lineColor:[233,238,244],lineWidth:0.1,valign:'middle'},
+      columnStyles:{0:{fontStyle:'bold',textColor:INK,font:AR},1:{halign:'left',cellWidth:34},2:{halign:'center'},3:{halign:'center'},4:{halign:'center',fontStyle:'bold'},5:{halign:'center'},6:{halign:'center',fontStyle:'bold'}},
+      didParseCell:function(d){ if(d.section==='body'&&d.column.index===6){ var v=d.cell.raw; var c=v==='ON TIME'?GREEN:v==='SLOW'?BLUE:v==='DELAYED'?RED:GRAY; d.cell.styles.fillColor=c; d.cell.styles.textColor=WHITE; } } });
+    doc.setFont(F,'italic'); doc.setFontSize(6.6); sc(GRAY); doc.text('Showing the first '+aRows.length+' station events. Full station-level data is available in the Excel export.', ML, doc.lastAutoTable.finalY+5);
+
+    /* ═══════════ PAGE 8 — MANAGEMENT ACTION PLAN ═══════════ */
+    newPage('Management Action Plan');
+    var y8=band(26,'Section 08','Management Action Plan');
+    var actImmediate=[], actShort=[], actStrategic=[];
+    if(mainBn.sev!=='Optimal') actImmediate.push(['Critical','Deploy supervision to '+mainBn.en, mainBn.en+' at '+(mainBn.varPct>0?'+':'')+mainBn.varPct+'% vs standard','Restore dwell time to standard','Operations']);
+    if(catCount['Critical Delay']>0) actImmediate.push(['Critical','Investigate '+catCount['Critical Delay']+' critical-delay vehicle(s)','Severe cycle overruns','Recover throughput','Operations']);
+    if(openCount>0) actImmediate.push(['High','Close '+openCount+' open tracking record(s)','Incomplete data weakens reporting','Restore data integrity','Control Room']);
+    if(!actImmediate.length) actImmediate.push(['Low','Maintain current operating rhythm','Operating within all targets','Sustain performance','Operations']);
+    actShort.push(['Medium','Align staffing to peak window '+peakHourText,'Demand concentrates at peak','Protect peak throughput','HR / Operations']);
+    if(stByPri[1]&&stByPri[1].sev!=='Optimal') actShort.push(['Medium','Workflow review at '+stByPri[1].en,'Secondary bottleneck','Smooth station flow','Process Excellence']);
+    actShort.push(['Medium','Institute daily delay Pareto review',pareto80+' vehicles drive 80% of delay','Targeted delay reduction','Operations']);
+    actStrategic.push(['Strategic','Re-baseline station benchmarks','Standards vs real capacity','Data-driven targets','BI / Operations']);
+    actStrategic.push(['Strategic','Launch continuous-improvement (Kaizen) cycle','Recurring variance','Operational excellence','Executive Sponsor']);
+    actStrategic.push(['Strategic','Automate checkout to remove open records','Manual tracking gaps','Near-100% data integrity','IT / Operations']);
+    function actBlock(y, title, accent, rows){
+      doc.setFont(F,'bold'); doc.setFontSize(8.4); sc(accent); doc.text(title.toUpperCase(), ML, y);
+      sd(accent); doc.setLineWidth(0.5); doc.line(ML, y+1.8, ML+58, y+1.8);
+      var r=exTable({ startY:y+4, head:[['Priority','Recommended Action','Business Impact','Expected Outcome','Owner / Dept.']], body:rows,
+        columnStyles:{0:{halign:'center',cellWidth:20},1:{fontStyle:'bold',textColor:INK,cellWidth:62},2:{cellWidth:62},3:{cellWidth:62},4:{halign:'center'}},
+        headStyles:{fillColor:accent,textColor:WHITE,fontStyle:'bold',fontSize:7.2,halign:'center',cellPadding:2.2},
+        didParseCell:function(d){ if(d.section==='body'&&d.column.index===0){ var c=lvlColor(d.cell.raw)||(d.cell.raw==='Strategic'?INK:BLUE); if(d.cell.raw==='Strategic')c=INK; d.cell.styles.fillColor=c; d.cell.styles.textColor=WHITE; d.cell.styles.fontStyle='bold'; } } });
+      return doc.lastAutoTable.finalY;
+    }
+    var ay=y8+6;
+    ay=actBlock(ay,'1 · Immediate Actions — Next 24 Hours', RED, actImmediate)+8;
+    ay=actBlock(ay,'2 · Short-Term Actions — Next 7 Days', AMBER, actShort)+8;
+    actBlock(ay,'3 · Strategic Actions — Next 30 Days', INK, actStrategic);
+
+    /* ═══════════ FOOTERS ═══════════ */
+    var tot=doc.getNumberOfPages();
+    for(var p=1;p<=tot;p++){ doc.setPage(p);
+      sd(LINE); doc.setLineWidth(0.3); doc.line(ML, PH-8.5, PW-MR, PH-8.5);
+      doc.setFont(F,'normal'); doc.setFontSize(6.6); sc(GRAY);
+      doc.text('STRICTLY CONFIDENTIAL — Executive & Board Use Only', ML, PH-4.5);
+      doc.text('Page '+p+' of '+tot, PW/2, PH-4.5, {align:'center'});
+      doc.text('Generated '+nowStr+'  ·  '+uname, PW-MR, PH-4.5, {align:'right'});
+    }
+
     setLd(false);
-    doc.save('Cairo3A_ExecReport_'+from+'_to_'+to+'.pdf');
-    showToast('tg','📄','PDF ('+pgCount+' صفحات)','تم التصدير بنجاح','');
+    doc.save('Cairo3A_Executive_Report_'+from+'_to_'+to+'.pdf');
+    showToast('tg','📄','PDF ('+tot+' صفحات)','تم إنشاء التقرير التنفيذي بنجاح','');
   });
 }
 
