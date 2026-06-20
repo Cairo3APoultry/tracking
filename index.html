@@ -3166,7 +3166,7 @@ function expPDF() {
     /* ═══════════ PAGE 5 — VEHICLE PERFORMANCE ═══════════ */
     newPage('Vehicle Performance Analysis');
     var y5=band(26,'Section 05','Vehicle Performance Analysis');
-    var cats=[['High Performance',catCount['High Performance'],GREEN,'Score ≥ 90'],['Normal',catCount['Normal'],BLUE,'Score 70–89'],['At Risk',catCount['At Risk'],AMBER,'Score 40–69'],['Critical Delay',catCount['Critical Delay'],RED,'Score < 40']];
+    var cats=[['High Performance',catCount['High Performance'],GREEN,'Score >= 90'],['Normal',catCount['Normal'],BLUE,'Score 70–89'],['At Risk',catCount['At Risk'],AMBER,'Score 40–69'],['Critical Delay',catCount['Critical Delay'],RED,'Score < 40']];
     var ccw=(CW-3*6)/4, ccy=y5+6, tot5=Math.max(1,started.length);
     cats.forEach(function(c,ix){
       var x=ML+ix*(ccw+6);
@@ -3270,7 +3270,7 @@ function expPDF() {
       doc.setFont(F,'normal'); doc.setFontSize(6.6); sc(GRAY);
       doc.text('STRICTLY CONFIDENTIAL — Executive & Board Use Only', ML, PH-4.5);
       doc.text('Page '+p+' of '+tot, PW/2, PH-4.5, {align:'center'});
-      doc.text('Generated '+nowStr+'  ·  '+uname, PW-MR, PH-4.5, {align:'right'});
+      doc.text('Generated '+nowStr+'  ·  Cairo 3A Operations Intelligence', PW-MR, PH-4.5, {align:'right'});
     }
 
     setLd(false);
