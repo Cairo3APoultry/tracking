@@ -449,7 +449,7 @@ tbody tr:last-child{border-bottom:none;}
       <span id="hDay2"></span>
       <button class="tb-icon-btn" onclick="loadData()" title="تحديث البيانات">🔄</button>
       <button class="tb-icon-btn" onclick="goPage('scan1',null)" title="ماسح الدخول">📷</button>
-      <button class="tb-icon-btn" style="background:var(--rgrad);color:#fff;" onclick="openScanner('entry')" title="فتح ماسح QR">🔍</button>
+      <button class="tb-icon-btn" id="tbScanBtn" style="background:var(--rgrad);color:#fff;" onclick="openScanner('entry')" title="فتح ماسح QR">🔍</button>
       <button class="tb-icon-btn" onclick="openTV()" title="شاشة غرفة التحكم">📺</button>
       <button class="tb-icon-btn" id="installBtn" style="display:none;background:var(--rgrad);color:#fff;" onclick="installApp()" title="تثبيت التطبيق على الجهاز">⬇️</button>
     </div>
@@ -540,7 +540,8 @@ tbody tr:last-child{border-bottom:none;}
                 <button class="btn btgray kk kk-clr" onclick="kbClr(1)">✕ مسح</button>
               </div>
               <button class="btn btr" id="sRegBtn" style="width:100%;margin-top:10px;padding:13px;" disabled onclick="regEntry()">✅ تسجيل الدخول</button>
-              <button class="btn btb" style="width:100%;margin-top:8px;padding:13px;font-size:14px;" onclick="openScanner('entry')">📷 فتح ماسح QR</button>
+              <button class="btn" id="nfcBtn1" style="width:100%;margin-top:8px;padding:14px;font-size:15px;font-weight:700;border:1.5px solid #16a34a;color:#16a34a;" onclick="nfcToggle('entry')">📱 تفعيل قارئ NFC</button>
+              <button class="btn btb" id="qrBtn1" style="width:100%;margin-top:8px;padding:13px;font-size:14px;" onclick="openScanner('entry')">📷 فتح ماسح QR</button>
             </div>
           </div>
           <div>
@@ -578,7 +579,8 @@ tbody tr:last-child{border-bottom:none;}
                 <div class="qstat" id="stStat" style="display:none;"></div>
               </div>
               <div style="margin-top:14px;">
-                <button class="btn btb" style="width:100%;padding:15px;font-size:15px;font-weight:700;" onclick="openScanner('station')">📷 فتح ماسح QR</button>
+                <button class="btn btb" id="qrBtn2" style="width:100%;padding:15px;font-size:15px;font-weight:700;" onclick="openScanner('station')">📷 فتح ماسح QR</button>
+                <button class="btn" id="nfcBtn2" style="width:100%;margin-top:8px;padding:15px;font-size:15px;font-weight:700;border:1.5px solid #16a34a;color:#16a34a;" onclick="nfcToggle('station')">📱 تفعيل قارئ NFC</button>
                 <button class="btn btgray" style="width:100%;margin-top:8px;padding:10px;font-size:13px;" onclick="toggleStKb()">⌨️ إدخال يدوي</button>
                 <div id="stKbWrap" style="display:none;margin-top:10px;">
                   <div class="kb-preview" id="stKbP">اكتب اللوحة ↓</div>
@@ -736,8 +738,10 @@ tbody tr:last-child{border-bottom:none;}
               <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
                 <input type="text" id="newQrCode" placeholder="كود QR الجديد (مثلاً C3A-001)" style="flex:1;min-width:160px;padding:8px 10px;border:1.5px solid var(--bdr2);border-radius:var(--r);font-family:var(--mono);font-size:13px;">
                 <button class="btn btr btn-sm" onclick="addNewQR()">+ إضافة كود</button>
+                <button class="btn btn-sm" style="border:1.5px solid #16a34a;color:#16a34a;font-weight:700;" onclick="nfcLinkNew()">📱 ربط كارت NFC</button>
                 <button class="btn btgray btn-sm" onclick="loadQRFromServer()">🔄 جلب من الخادم</button>
               </div>
+              <div style="font-size:11px;color:var(--t2);margin-bottom:10px;line-height:1.6;">📱 <b>ربط كارت NFC:</b> اضغط الزر الأخضر، قرّب كارت السيارة من الموبايل، وبعدين اكتب رقم اللوحة — هيتربط الكارت بالسيارة زي رمز QR بالظبط.</div>
               <div class="qr-grid" id="qrGrid"></div>
             </div>
           </div>
@@ -804,9 +808,9 @@ tbody tr:last-child{border-bottom:none;}
 <!-- Link QR Modal -->
 <div class="modal-bg" id="linkQRM">
   <div class="modal modal-sm">
-    <div class="modal-hdr"><h3>🔗 ربط رمز QR بسيارة</h3><button class="modal-close" onclick="document.getElementById('linkQRM').classList.remove('open')">✕</button></div>
+    <div class="modal-hdr"><h3>🔗 ربط رمز/كارت بسيارة</h3><button class="modal-close" onclick="document.getElementById('linkQRM').classList.remove('open')">✕</button></div>
     <div class="modal-body">
-      <div style="text-align:center;margin-bottom:16px;"><div style="font-size:48px;margin-bottom:8px;">🔖</div><div style="font-size:13px;color:var(--t2);">رمز QR غير مرتبط:</div><div style="font-size:22px;font-weight:900;font-family:var(--mono);color:var(--red);letter-spacing:3px;" id="lqrCode"></div></div>
+      <div style="text-align:center;margin-bottom:16px;"><div style="font-size:48px;margin-bottom:8px;">🔖</div><div style="font-size:13px;color:var(--t2);">رمز/كارت غير مرتبط:</div><div style="font-size:20px;font-weight:900;font-family:var(--mono);color:var(--red);letter-spacing:2px;word-break:break-all;" id="lqrCode"></div></div>
       <div class="login-field"><label>رقم لوحة السيارة</label><input type="text" id="lqrPlate" placeholder="مثال: أ ب ج ١٢٣٤" style="font-family:var(--mono);font-size:16px;text-align:center;font-weight:700;" autocorrect="off"></div>
     </div>
     <div class="modal-foot"><button class="btn btghost" onclick="closeLinkQR()">تجاهل</button><button class="btn btr" onclick="confirmLinkQR()">🔗 ربط وتسجيل</button></div>
@@ -879,6 +883,33 @@ tbody tr:last-child{border-bottom:none;}
     <div class="modal-foot">
       <button class="btn btghost" onclick="document.getElementById('shiftM').classList.remove('open')">إلغاء</button>
       <button class="btn btr" onclick="saveShiftSettings()">💾 حفظ التوقيت</button>
+    </div>
+  </div>
+</div>
+
+<!-- Scan Mode Modal (Admin) -->
+<div class="modal-bg" id="scanModeM">
+  <div class="modal modal-sm">
+    <div class="modal-hdr"><h3>📲 طريقة المسح الافتراضية</h3><button class="modal-close" onclick="document.getElementById('scanModeM').classList.remove('open')">✕</button></div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--t2);line-height:1.7;margin-bottom:16px;background:var(--bg3);padding:12px;border-radius:var(--r);">
+        اختر الطريقة اللي هتظهر للمشغّلين. «NFC فقط» بيخفي زرار الكاميرا تماماً ويخلّي القراءة بالكارت هي الافتراضية — أسهل وأسرع وأقل أخطاء. يطبَّق على كل الأجهزة فوراً.
+      </div>
+      <button id="smB_nfc" onclick="saveScanMode('nfc')" style="width:100%;text-align:right;padding:14px;margin-bottom:10px;border:2px solid var(--bdr2);border-radius:var(--r);background:var(--bg2);cursor:pointer;">
+        <div style="font-weight:800;font-size:15px;color:var(--tx);">📱 NFC فقط <span style="font-size:11px;color:#16a34a;font-weight:700;">(موصى به)</span></div>
+        <div style="font-size:12px;color:var(--t2);margin-top:3px;">قراءة بالكارت فقط — إخفاء الكاميرا نهائياً</div>
+      </button>
+      <button id="smB_both" onclick="saveScanMode('both')" style="width:100%;text-align:right;padding:14px;margin-bottom:10px;border:2px solid var(--bdr2);border-radius:var(--r);background:var(--bg2);cursor:pointer;">
+        <div style="font-weight:800;font-size:15px;color:var(--tx);">📱📷 الاثنان معاً</div>
+        <div style="font-size:12px;color:var(--t2);margin-top:3px;">NFC والكاميرا متاحين للمشغّل</div>
+      </button>
+      <button id="smB_qr" onclick="saveScanMode('qr')" style="width:100%;text-align:right;padding:14px;border:2px solid var(--bdr2);border-radius:var(--r);background:var(--bg2);cursor:pointer;">
+        <div style="font-weight:800;font-size:15px;color:var(--tx);">📷 QR فقط</div>
+        <div style="font-size:12px;color:var(--t2);margin-top:3px;">الكاميرا فقط — إخفاء زر NFC</div>
+      </button>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btghost" onclick="document.getElementById('scanModeM').classList.remove('open')">إغلاق</button>
     </div>
   </div>
 </div>
@@ -1311,7 +1342,7 @@ function _doInit() {
 
   startQRListener();
 
-  ['benchM','journeyM','warnM','addUserM','linkQRM','stagesMgrM','shiftM','dbDeleteM','dbSpaceM','iosM'].forEach(function(id) {
+  ['benchM','journeyM','warnM','addUserM','linkQRM','stagesMgrM','shiftM','dbDeleteM','dbSpaceM','iosM','scanModeM'].forEach(function(id) {
     var el = document.getElementById(id);
     if(el) el.addEventListener('click', function(e) { if(e.target === el) { if(id==='warnM') closeWarn(); else el.classList.remove('open'); } });
   });
@@ -1420,6 +1451,7 @@ function afterLogin() {
 
   buildStationCards();
   buildAdminGrid();
+  applyScanMode();
   updDay();
   updScanDaySummary();
   if(!(role === 'operator' && !isAll)) renderDash();
@@ -1451,11 +1483,12 @@ function goPage(page, navEl) {
   else { var ni = document.querySelector('.ni[data-page="'+page+'"]'); if(ni) ni.classList.add('active'); }
   document.getElementById('pb').scrollTo(0,0);
   _curPage = page;
+  if(_nfcActive && page!=='scan1' && page!=='scan2') nfcStop();
   if(page==='dash') renderDash();
   if(page==='reports') renderReports();
   if(page==='bench') buildBenchGrid();
-  if(page==='scan1') updDay();
-  if(page==='scan2') { buildStationCards(); updStSel(); updDay(); }
+  if(page==='scan1'){ updDay(); applyScanMode(); if(SCAN_MODE==='nfc' && !_nfcActive) nfcStart('entry', null, true); }
+  if(page==='scan2'){ buildStationCards(); updStSel(); updDay(); applyScanMode(); if(SCAN_MODE==='nfc' && !_nfcActive) nfcStart('station', null, true); }
   closeMobNav();
 }
 function openMobNav() { document.getElementById('nav').classList.add('mob-open'); document.getElementById('mobOverlay').classList.add('show'); }
@@ -1494,6 +1527,8 @@ function loadSettings() {
     var s = parseInt(o.shift_start_hour), e = parseInt(o.shift_end_hour);
     if(s>=0 && s<=23){ SHIFT_START_HOUR = s; localStorage.setItem('c3aShiftStart', s); }
     if(e>=0 && e<=23){ SHIFT_END_HOUR = e; localStorage.setItem('c3aShiftEnd', e); }
+    var sm = o.scan_mode;
+    if(sm==='nfc'||sm==='qr'||sm==='both'){ SCAN_MODE = sm; localStorage.setItem('c3aScanMode', sm); applyScanMode(); }
   }).catch(function(){});
 }
 function silentSync() {
@@ -2150,8 +2185,9 @@ function regEntry() {
   if(num.replace(/\s/g,'').length < 2) return;
   var td = today(), now = nowT();
 
-  if(raw.indexOf('C3A-')===0 || raw.indexOf('c3a-')===0) {
-    var qrCode = raw.toUpperCase();
+  var upRaw = raw.toUpperCase();
+  if(upRaw.indexOf('C3A-')===0 || upRaw.indexOf('NFC:')===0) {
+    var qrCode = upRaw;
     var linked = qrd[qrCode];
     if(!linked || !linked.plate) { showLinkQR(qrCode, 'entry', null); pb1=''; updP(1); return; }
     pb1 = linked.plate; return regEntry();
@@ -2203,7 +2239,7 @@ function buildStationCards() {
       + '<div style="font-size:30px">'+s.icon+'</div>'
       + '<div style="font-size:13px;font-weight:700;margin:6px 0 2px">'+s.label+'</div>'
       + '<div style="font-size:11px;color:var(--t2)">'+cnt+' داخل الآن</div>'
-      + '<div style="margin-top:8px;font-size:11px;font-weight:700;color:var(--red)">📷 افتح الماسح</div>'
+      + '<div style="margin-top:8px;font-size:11px;font-weight:700;color:var(--red)">'+(SCAN_MODE==='nfc'?'📱 قرّب الكارت':'📷 افتح الماسح')+'</div>'
       + '</div>';
   }).join('');
 }
@@ -2211,7 +2247,8 @@ function pickStation(key) {
   var sel = document.getElementById('stSel');
   if(sel) sel.value = key;
   updStSel();
-  openScanner('station');
+  if(SCAN_MODE==='nfc'){ if(!_nfcActive) nfcStart('station', null); }
+  else openScanner('station');
 }
 function toggleStKb() {
   var w = document.getElementById('stKbWrap');
@@ -2224,8 +2261,9 @@ function regStation() {
   if(num.replace(/\s/g,'').length < 2) return;
   var td = today(), now = nowT();
 
-  if(raw.indexOf('C3A-')===0 || raw.indexOf('c3a-')===0) {
-    var qrCode = raw.toUpperCase();
+  var upRaw2 = raw.toUpperCase();
+  if(upRaw2.indexOf('C3A-')===0 || upRaw2.indexOf('NFC:')===0) {
+    var qrCode = upRaw2;
     var linked = qrd[qrCode];
     if(!linked || !linked.plate) { showLinkQR(qrCode, 'station', ''); pb2=''; updP(2); return; }
     num = linked.plate;
@@ -2355,6 +2393,109 @@ function _handleCode(code) {
 }
 
 /* ════════════════════════
+   NFC READER (Web NFC — Chrome على أندرويد)
+   يقرأ كارت السيارة تلقائياً ويغذّي نفس منطق التسجيل (_handleCode)
+════════════════════════ */
+var NFC_OK = (typeof window !== 'undefined' && ('NDEFReader' in window));
+var _nfcReader = null, _nfcAbort = null, _nfcActive = false, _nfcLinkCb = null;
+
+function _nfcExtract(ev) {
+  try {
+    if (ev.message && ev.message.records) {
+      for (var i = 0; i < ev.message.records.length; i++) {
+        var r = ev.message.records[i];
+        if (r.recordType === 'text') { return new TextDecoder(r.encoding || 'utf-8').decode(r.data).trim(); }
+        if (r.recordType === 'url') { var u = new TextDecoder().decode(r.data).trim(); var m = u.match(/[#?]qr=([^&]+)/); return m ? decodeURIComponent(m[1]).trim() : u; }
+      }
+    }
+  } catch (e) {}
+  return ev.serialNumber ? ('NFC:' + String(ev.serialNumber).toUpperCase().replace(/[^0-9A-F]/g, '')) : '';
+}
+function _nfcFeedback(ok) {
+  try { if (navigator.vibrate) navigator.vibrate(ok ? 60 : [40, 40, 40]); } catch (e) {}
+  try {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) { var c = new AC(); var o = c.createOscillator(); var g = c.createGain(); o.connect(g); g.connect(c.destination); o.frequency.value = ok ? 880 : 300; g.gain.value = 0.07; o.start(); setTimeout(function(){ try{o.stop(); c.close();}catch(_){}}, 130); }
+  } catch (e) {}
+}
+function _nfcSetUI(active) {
+  ['nfcBtn1','nfcBtn2'].forEach(function(id){
+    var b = document.getElementById(id); if(!b) return;
+    b.innerHTML = active ? '🟢 NFC نشط — قرّب الكارت · إيقاف' : '📱 تفعيل قارئ NFC';
+    b.style.background = active ? '#16a34a' : '';
+    b.style.color = active ? '#fff' : '';
+  });
+}
+function nfcToggle(ctx) { if (_nfcActive) { nfcStop(); } else { nfcStart(ctx, null); } }
+function nfcStart(ctx, linkCb, silent) {
+  if (!NFC_OK) {
+    if(!silent) openWarn('📱','قارئ NFC غير متاح على هذا الجهاز','قراءة NFC من المتصفح متاحة على Chrome في أندرويد فقط (غير مدعومة على الآيفون). تأكد إنك على Chrome وإن NFC مُفعّل في إعدادات الجهاز — أو استخدم ماسح QR.', null);
+    return false;
+  }
+  _scanCtx = ctx || _scanCtx || 'entry';
+  _nfcLinkCb = linkCb || null;
+  try {
+    _nfcReader = new NDEFReader();
+    _nfcAbort = new AbortController();
+    _nfcReader.scan({ signal: _nfcAbort.signal }).then(function(){
+      _nfcActive = true; if(!linkCb) _nfcSetUI(true);
+      showToast('tg','📱','NFC', linkCb ? 'قرّب الكارت المراد ربطه' : 'NFC نشط — قرّب كارت السيارة','');
+      _nfcReader.onreading = function(ev){
+        var code = _nfcExtract(ev);
+        if (!code) { _nfcFeedback(false); return; }
+        _nfcFeedback(true);
+        if (_nfcLinkCb) { var cb = _nfcLinkCb; nfcStop(); cb(code); }
+        else { _handleCode(code); }
+      };
+      _nfcReader.onreadingerror = function(){ _nfcFeedback(false); showToast('tw','⚠️','NFC','تعذّرت القراءة — قرّب الكارت أكتر',''); };
+    }).catch(function(err){
+      _nfcActive = false; _nfcSetUI(false);
+      if(silent) return;
+      var msg = (err && err.name === 'NotAllowedError') ? 'لازم تسمح بصلاحية NFC للموقع، وتتأكد إن NFC مُفعّل في الجهاز' : ('تعذّر تشغيل NFC: ' + ((err && err.message) || ''));
+      showToast('tw','⚠️','NFC', msg, '');
+    });
+    return true;
+  } catch (e) { showToast('tw','⚠️','NFC','خطأ في تشغيل NFC',''); return false; }
+}
+function nfcStop() {
+  _nfcActive = false; _nfcLinkCb = null;
+  try { if (_nfcAbort) _nfcAbort.abort(); } catch (e) {}
+  _nfcAbort = null; _nfcReader = null;
+  _nfcSetUI(false);
+}
+function nfcLinkNew() { nfcStart('link', function(code){ showLinkQR(code, 'link', null); }); }
+
+/* ════════════════════════
+   SCAN MODE (يتحكم فيه الأدمن — يخفي/يظهر QR و NFC لكل المستخدمين)
+   both = الاثنان | nfc = NFC فقط (إخفاء الكاميرا) | qr = QR فقط
+════════════════════════ */
+var SCAN_MODE = (function(){ var m=localStorage.getItem('c3aScanMode'); return (m==='nfc'||m==='qr'||m==='both')?m:'both'; })();
+function applyScanMode(){
+  var showQR = (SCAN_MODE!=='nfc'), showNFC = (SCAN_MODE!=='qr');
+  ['qrBtn1','qrBtn2','tbScanBtn'].forEach(function(id){ var b=document.getElementById(id); if(b) b.style.display=showQR?'':'none'; });
+  ['nfcBtn1','nfcBtn2'].forEach(function(id){ var b=document.getElementById(id); if(b) b.style.display=showNFC?'':'none'; });
+  if(document.getElementById('stCards')) buildStationCards();
+}
+function _isAdminRole(){ return !!(sess && (sess.role==='admin' || sess.role==='developer')); }
+function saveScanMode(mode){
+  if(!_isAdminRole()){ showToast('tw','🚫','صلاحية','تغيير طريقة المسح للمدير فقط',''); return; }
+  if(['both','nfc','qr'].indexOf(mode)<0) return;
+  SCAN_MODE = mode;
+  localStorage.setItem('c3aScanMode', mode);
+  applyScanMode();
+  if(!DEV) db.saveSetting('scan_mode', mode)
+    .then(function(){ showToast('tg','✅','طريقة المسح','تم الحفظ لكل المستخدمين',''); })
+    .catch(function(e){ showToast('tw','⚠️','خطأ',(e&&e.message)||'فشل الحفظ',''); });
+  else showToast('tg','✅','طريقة المسح','تم الحفظ محلياً','');
+  var m=document.getElementById('scanModeM'); if(m) m.classList.remove('open');
+}
+function openScanMode(){
+  if(!_isAdminRole()){ showToast('tw','🚫','صلاحية','هذا الإعداد للمدير فقط',''); return; }
+  ['smB_both','smB_nfc','smB_qr'].forEach(function(id){ var b=document.getElementById(id); if(b){ var on=(id==='smB_'+SCAN_MODE); b.style.borderColor=on?'#16a34a':'var(--bdr2)'; b.style.background=on?'rgba(22,163,74,0.08)':'var(--bg2)'; } });
+  document.getElementById('scanModeM').classList.add('open');
+}
+
+/* ════════════════════════
    BENCHMARKS
 ════════════════════════ */
 function buildBenchGrid() {
@@ -2445,6 +2586,7 @@ function buildAdminGrid() {
   if(!g) return;
   var items = [
     {ico:'⏰',lbl:'توقيت الوردية',     sub:'تحديد بداية ونهاية الوردية',     fn:"openShiftSettings()"},
+    {ico:'📲',lbl:'طريقة المسح',       sub:'NFC / QR — تحكّم لكل المستخدمين',  fn:"openScanMode()"},
     {ico:'🎯',lbl:'المعايير الزمنية',  sub:'تعديل أوقات المحطات',            fn:"openBench()"},
     {ico:'🔧',lbl:'إدارة المراحل',     sub:'ترتيب وإضافة مراحل جديدة',       fn:"openStagesMgr()"},
     {ico:'👥',lbl:'المستخدمون',        sub:'إدارة الأدوار والصلاحيات',        fn:"togglePanel('usersPanel')"},
