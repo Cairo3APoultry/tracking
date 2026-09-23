@@ -1534,6 +1534,7 @@ function loadSettings() {
 function silentSync() {
   if(DEV || isSyncing || !sess) return;
   isSyncing = true;
+  loadSettings();
   db.loadAll()
     .then(function(d) {
       isSyncing = false;
